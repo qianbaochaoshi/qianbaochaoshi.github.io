@@ -134,8 +134,8 @@
 <body>
 <div class="header">
   <div class="left">
-    <img id="img" src="http://118.1ypx.com/uploads/produce/20180808/b07e485f2c8c5660cc3b1d2698ddb316.png" />
-    <span class="text" id="title">极享花</span>
+    <img id="img" src="" />
+    <span class="text" id="title"></span>
   </div>
   <div class="right">
     <button class="btn" id="clipboard" data-clipboard-action="copy" data-clipboard-target="#bar">复制链接</button>
@@ -177,6 +177,7 @@
 
   $(function () {
     if ( isWechat() && !( window.isLogin && window.user_id > 0 ) ) {
+		mui.alert('正在登录!');
       location.href = LOGIN_URL
       return
     }
