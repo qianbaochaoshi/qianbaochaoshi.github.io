@@ -5,7 +5,7 @@
  * =====================================================
  */
 /**
- * MUI鏍稿績JS
+ * MUI核心JS
  * @type _L4.$|Function
  */
 var mui = (function(document, undefined) {
@@ -148,7 +148,7 @@ var mui = (function(document, undefined) {
 			typeof length === "number" && length > 0 && (length - 1) in obj;
 	};
 	/**
-	 * mui isWindow(闇€鑰冭檻obj涓簎ndefined鐨勬儏鍐�)
+	 * mui isWindow(需考虑obj为undefined的情况)
 	 */
 	$.isWindow = function(obj) {
 		return obj != null && obj === obj.window;
@@ -209,10 +209,10 @@ var mui = (function(document, undefined) {
 		return this;
 	};
 	/**
-	 * 灏� fn 缂撳瓨涓€娈垫椂闂村悗, 鍐嶈璋冪敤鎵ц
-	 * 姝ゆ柟娉曚负浜嗛伩鍏嶅湪 ms 娈垫椂闂村唴, 鎵ц fn 澶氭. 甯哥敤浜� resize , scroll , mousemove 绛夎繛缁€т簨浠朵腑;
-	 * 褰� ms 璁剧疆涓� -1, 琛ㄧず绔嬪嵆鎵ц fn, 鍗冲拰鐩存帴璋冪敤 fn 涓€鏍�;
-	 * 璋冪敤杩斿洖鍑芥暟鐨� stop 鍋滄鏈€鍚庝竴娆＄殑 buffer 鏁堟灉
+	 * 将 fn 缓存一段时间后, 再被调用执行
+	 * 此方法为了避免在 ms 段时间内, 执行 fn 多次. 常用于 resize , scroll , mousemove 等连续性事件中;
+	 * 当 ms 设置为 -1, 表示立即执行 fn, 即和直接调用 fn 一样;
+	 * 调用返回函数的 stop 停止最后一次的 buffer 效果
 	 * @param {Object} fn
 	 * @param {Object} ms
 	 * @param {Object} context
@@ -235,9 +235,9 @@ var mui = (function(document, undefined) {
 
 		return $.extend(function() {
 			if (
-				(!lastStart) || // 浠庢湭杩愯杩�
-				(lastEnd >= lastStart && $.now() - lastEnd > ms) || // 涓婃杩愯鎴愬姛鍚庡凡缁忚秴杩噈s姣
-				(lastEnd < lastStart && $.now() - lastStart > ms * 8) // 涓婃杩愯鎴栨湭瀹屾垚锛屽悗8*ms姣
+				(!lastStart) || // 从未运行过
+				(lastEnd >= lastStart && $.now() - lastEnd > ms) || // 上次运行成功后已经超过ms毫秒
+				(lastEnd < lastStart && $.now() - lastStart > ms * 8) // 上次运行或未完成，后8*ms毫秒
 			) {
 				run.apply(this, arguments);
 			} else {
@@ -386,16 +386,16 @@ var mui = (function(document, undefined) {
 		return $.hooks[type];
 	};
 	$.doAction = function(type, callback) {
-		if ($.isFunction(callback)) { //鎸囧畾浜哻allback
+		if ($.isFunction(callback)) { //指定了callback
 			$.each($.hooks[type], callback);
-		} else { //鏈寚瀹歝allback锛岀洿鎺ユ墽琛�
+		} else { //未指定callback，直接执行
 			$.each($.hooks[type], function(index, hook) {
 				return !hook.handle();
 			});
 		}
 	};
 	/**
-	 * setTimeout灏佽
+	 * setTimeout封装
 	 * @param {Object} fn
 	 * @param {Object} when
 	 * @param {Object} context
@@ -448,7 +448,7 @@ var mui = (function(document, undefined) {
 	};
 
 	/**
-	 * 鍏煎 AMD 妯″潡
+	 * 兼容 AMD 模块
 	 **/
 	if (typeof define === 'function' && define.amd) {
 		define('mui', [], function() {
@@ -524,7 +524,7 @@ var mui = (function(document, undefined) {
 			$(function() {
 				document.body.classList.add('mui-plus');
 			});
-			if (ua.match(/StreamApp/i)) { //TODO 鏈€濂芥湁娴佸簲鐢ㄨ嚜宸辩殑鏍囪瘑
+			if (ua.match(/StreamApp/i)) { //TODO 最好有流应用自己的标识
 				this.os.stream = true;
 				$(function() {
 					document.body.classList.add('mui-plus-stream');
@@ -535,7 +535,7 @@ var mui = (function(document, undefined) {
 	detect.call($, navigator.userAgent);
 })(mui, document);
 /**
- * 浠呮彁渚涚畝鍗曠殑on锛宱ff(浠呮敮鎸佷簨浠跺鎵橈紝涓嶆敮鎸佸綋鍓嶅厓绱犵粦瀹氾紝褰撳墠鍏冪礌缁戝畾璇风洿鎺ヤ娇鐢╝ddEventListener,removeEventListener)
+ * 仅提供简单的on，off(仅支持事件委托，不支持当前元素绑定，当前元素绑定请直接使用addEventListener,removeEventListener)
  * @param {Object} $
  */
 (function($) {
@@ -555,21 +555,21 @@ var mui = (function(document, undefined) {
 
 	var _mid = 1;
 	var delegates = {};
-	//闇€瑕亀rap鐨勫嚱鏁�
+	//需要wrap的函数
 	var eventMethods = {
 		preventDefault: 'isDefaultPrevented',
 		stopImmediatePropagation: 'isImmediatePropagationStopped',
 		stopPropagation: 'isPropagationStopped'
 	};
-	//榛樿true杩斿洖鍑芥暟
+	//默认true返回函数
 	var returnTrue = function() {
 		return true
 	};
-	//榛樿false杩斿洖鍑芥暟
+	//默认false返回函数
 	var returnFalse = function() {
 		return false
 	};
-	//wrap娴忚鍣ㄤ簨浠�
+	//wrap浏览器事件
 	var compatible = function(event, target) {
 		if (!event.detail) {
 			event.detail = {
@@ -588,13 +588,13 @@ var mui = (function(document, undefined) {
 		}, true);
 		return event;
 	};
-	//绠€鍗曠殑wrap瀵硅薄_mid
+	//简单的wrap对象_mid
 	var mid = function(obj) {
 		return obj && (obj._mid || (obj._mid = _mid++));
 	};
-	//浜嬩欢濮旀墭瀵硅薄缁戝畾鐨勪簨浠跺洖璋冨垪琛�
+	//事件委托对象绑定的事件回调列表
 	var delegateFns = {};
-	//杩斿洖浜嬩欢濮旀墭鐨剋rap浜嬩欢鍥炶皟
+	//返回事件委托的wrap事件回调
 	var delegateFn = function(element, event, selector, callback) {
 		return function(e) {
 			//same event
@@ -672,7 +672,7 @@ var mui = (function(document, undefined) {
 	 * @param {type} callback
 	 * @returns {undefined}
 	 */
-	$.fn.on = function(event, selector, callback) { //浠呮敮鎸佺畝鍗曠殑浜嬩欢濮旀墭,涓昏鏄痶ap浜嬩欢浣跨敤锛岀被浼糾ouse,focus涔嬬被鏆備笉灏佽鏀寔
+	$.fn.on = function(event, selector, callback) { //仅支持简单的事件委托,主要是tap事件使用，类似mouse,focus之类暂不封装支持
 		return this.each(function() {
 			var element = this;
 			mid(element);
@@ -696,7 +696,7 @@ var mui = (function(document, undefined) {
 				delegateCallback.type = event;
 				delegateFns[mid(element)] = delegateFnArray;
 				element.addEventListener(event, delegateCallback);
-				if (event === 'tap') { //TODO 闇€瑕佹壘涓洿濂界殑瑙ｅ喅鏂规
+				if (event === 'tap') { //TODO 需要找个更好的解决方案
 					element.addEventListener('click', function(e) {
 						if (e.target) {
 							var tagName = e.target.tagName;
@@ -735,7 +735,7 @@ var mui = (function(document, undefined) {
 				}, true);
 			}
 			if (delegates[_mid]) {
-				//濡傛灉off鎺変簡鎵€鏈夊綋鍓峞lement鐨勬寚瀹氱殑event浜嬩欢锛屽垯remove鎺夊綋鍓峞lement鐨刣elegate鍥炶皟
+				//如果off掉了所有当前element的指定的event事件，则remove掉当前element的delegate回调
 				if ((!delegates[_mid][event] || $.isEmptyObject(delegates[_mid][event]))) {
 					findDelegateFn(this, event).forEach(function(fn) {
 						this.removeEventListener(fn.type, fn);
@@ -743,7 +743,7 @@ var mui = (function(document, undefined) {
 					}.bind(this));
 				}
 			} else {
-				//濡傛灉delegates[_mid]宸蹭笉瀛樺湪锛屽垹闄ゆ墍鏈�
+				//如果delegates[_mid]已不存在，删除所有
 				findDelegateFn(this).forEach(function(fn) {
 					this.removeEventListener(fn.type, fn);
 					delete delegateFns[_mid][fn.i];
@@ -809,7 +809,7 @@ var mui = (function(document, undefined) {
 			}
 		}
 	});
-	window.addEventListener('click', function(event) { //瑙ｅ喅touch涓巆lick鐨則arget涓嶄竴鑷寸殑闂(姣斿閾炬帴杈圭紭鐐瑰嚮鏃讹紝touch鐨則arget涓篽tml锛岃€宑lick鐨則arget涓篈)
+	window.addEventListener('click', function(event) { //解决touch与click的target不一致的问题(比如链接边缘点击时，touch的target为html，而click的target为A)
 		var target = event.target;
 		var isFound = false;
 		for (; target && target !== document; target = target.parentNode) {
@@ -974,7 +974,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
  * fastclick(only for radio,checkbox)
  */
 (function($, window, name) {
-	if (!$.os.android && !$.os.ios) { //鐩墠浠呰瘑鍒玜ndroid鍜宨os
+	if (!$.os.android && !$.os.ios) { //目前仅识别android和ios
 		return;
 	}
 	if (window.FastClick) {
@@ -1020,7 +1020,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	};
 	window.addEventListener('tap', dispatchEvent);
 	window.addEventListener('doubletap', dispatchEvent);
-	//鎹曡幏
+	//捕获
 	window.addEventListener('click', function(event) {
 		if ($.targets.click) {
 			if (!event.forwardedTouchEvent) { //stop click
@@ -1053,7 +1053,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		// 	document.body.insertBefore(content, document.body.firstElementChild);
 		// }
 		document.addEventListener('focusin', function(e) {
-			if ($.os.plus) { //鍦ㄧ埗webview閲岃竟涓峟ix
+			if ($.os.plus) { //在父webview里边不fix
 				if (window.plus) {
 					if (plus.webview.currentWebview().children().length > 0) {
 						return;
@@ -1061,7 +1061,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				}
 			}
 			var target = e.target;
-			//TODO 闇€鑰冭檻鎵€鏈夐敭鐩樺脊璧风殑鎯呭喌
+			//TODO 需考虑所有键盘弹起的情况
 			if (target.tagName && (target.tagName === 'TEXTAREA' || (target.tagName === 'INPUT' && (target.type === 'text' || target.type === 'search' || target.type === 'number')))) {
 				if (target.disabled || target.readOnly) {
 					return;
@@ -1105,7 +1105,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	$.classNamePrefix = $.namespace + '-';
 	$.classSelectorPrefix = '.' + $.classNamePrefix;
 	/**
-	 * 杩斿洖姝ｇ‘鐨刢lassName
+	 * 返回正确的className
 	 * @param {type} className
 	 * @returns {String}
 	 */
@@ -1113,7 +1113,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return $.classNamePrefix + className;
 	};
 	/**
-	 * 杩斿洖姝ｇ‘鐨刢lassSelector
+	 * 返回正确的classSelector
 	 * @param {type} classSelector
 	 * @returns {String}
 	 */
@@ -1121,7 +1121,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return classSelector.replace(/\./g, $.classSelectorPrefix);
 	};
 	/**
-         * 杩斿洖姝ｇ‘鐨別ventName
+         * 返回正确的eventName
          * @param {type} event
          * @param {type} module
          * @returns {String}
@@ -1267,7 +1267,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		});
 	};
 	/**
-	 * 鏆傛椂鏃犵敤
+	 * 暂时无用
 	 * @param {Object} node
 	 * @param {Object} parent
 	 */
@@ -1458,7 +1458,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		var targetTouches = [];
 		var changedTargetTouches = [];
 
-		//褰搕ouchstart鎴杢ouchmove涓攖ouches闀垮害涓�1锛岀洿鎺ヨ幏寰梐ll鍜宑hanged
+		//当touchstart或touchmove且touches长度为1，直接获得all和changed
 		if ((type === $.EVENT_START || type === $.EVENT_MOVE) && allTouches.length === 1) {
 			targetIds[allTouches[0].identifier] = true;
 			targetTouches = allTouches;
@@ -1536,14 +1536,14 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	window.addEventListener($.EVENT_CANCEL, handleTouchEvent);
 	//fixed hashchange(android)
 	window.addEventListener($.EVENT_CLICK, function(e) {
-		//TODO 搴旇鍒ゆ柇褰撳墠target鏄笉鏄湪targets.popover鍐呴儴锛岃€屼笉鏄潪瑕佺浉绛�
+		//TODO 应该判断当前target是不是在targets.popover内部，而不是非要相等
 		if (($.os.android || $.os.ios) && (($.targets.popover && e.target === $.targets.popover) || ($.targets.tab) || $.targets.offcanvas || $.targets.modal)) {
 			e.preventDefault();
 		}
 	}, true);
 
 
-	//澧炲姞鍘熺敓婊氬姩璇嗗埆
+	//增加原生滚动识别
 	$.isScrolling = false;
 	var scrollingTimeout = null;
 	window.addEventListener('scroll', function() {
@@ -1613,7 +1613,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		if (event.type === $.EVENT_END || event.type === $.EVENT_CANCEL) {
 			var options = this.options;
 			touch.swipe = false;
-			//TODO 鍚庣画鏍规嵁velocity璁＄畻
+			//TODO 后续根据velocity计算
 			if (touch.direction && options.swipeMaxTime > touch.deltaTime && touch.distance > options.swipeMinDistince) {
 				touch.swipe = true;
 				$.trigger(session.target, name, touch);
@@ -1650,7 +1650,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				if (!touch.direction || !session.target) {
 					return;
 				}
-				//淇direction,鍙湪session鏈熼棿鑷閿佸畾鎷栨嫿鏂瑰悜锛屾柟渚垮紑鍙憇croll绫讳笉鍚屾柟鍚戞嫋鎷芥彃浠跺祵濂�
+				//修正direction,可在session期间自行锁定拖拽方向，方便开发scroll类不同方向拖拽插件嵌套
 				if (session.lockDirection && session.startDirection) {
 					if (session.startDirection && session.startDirection !== touch.direction) {
 						if (session.startDirection === 'up' || session.startDirection === 'down') {
@@ -1854,7 +1854,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					var scale = touch.scale;
 					var rotation = touch.rotation;
 					var lastScale = typeof touch.lastScale === 'undefined' ? 1 : touch.lastScale;
-					var scaleDiff = 0.000000000001; //闃叉scale涓巐astScale鐩哥瓑锛屼笉瑙﹀彂浜嬩欢鐨勬儏鍐点€�
+					var scaleDiff = 0.000000000001; //防止scale与lastScale相等，不触发事件的情况。
 					if (scale > lastScale) { //out
 						lastScale = scale - scaleDiff;
 						$.trigger(session.target, name + 'out', touch);
@@ -1919,7 +1919,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	var inits = {};
 
 	/**
-	 * 鍗曢〉閰嶇疆 鍒濆鍖�
+	 * 单页配置 初始化
 	 * @param {object} options
 	 */
 	$.init = function(options) {
@@ -1937,14 +1937,14 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	};
 
 	/**
-	 * 澧炲姞鍒濆鍖栨墽琛屾祦绋�
+	 * 增加初始化执行流程
 	 * @param {function} init
 	 */
 	$.addInit = function(init) {
 		return $.addAction('inits', init);
 	};
 	/**
-	 * 澶勭悊html5鐗堟湰subpages 
+	 * 处理html5版本subpages 
 	 */
 	$.addInit({
 		name: 'iframe',
@@ -1953,7 +1953,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			var options = $.options;
 			var subpages = options.subpages || [];
 			if (!$.os.plus && subpages.length) {
-				//鏆傛椂鍙鐞嗗崟涓猻ubpage銆傚悗缁彲浠ヨ€冭檻鏀寔澶氫釜subpage
+				//暂时只处理单个subpage。后续可以考虑支持多个subpage
 				createIframe(subpages[0]);
 			}
 		}
@@ -1976,7 +1976,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		iframe.name = iframe.id;
 		wrapper.appendChild(iframe);
 		document.body.appendChild(wrapper);
-		//鐩墠浠呭鐞嗗井淇�
+		//目前仅处理微信
 		$.os.wechat && handleScroll(wrapper, iframe);
 	};
 
@@ -2044,17 +2044,17 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	var defaultOptions = {
 		swipeBack: false,
 		preloadPages: [], //5+ lazyLoad webview
-		preloadLimit: 10, //棰勫姞杞界獥鍙ｇ殑鏁伴噺闄愬埗(涓€鏃﹁秴鍑猴紝鍏堣繘鍏堝嚭)
+		preloadLimit: 10, //预加载窗口的数量限制(一旦超出，先进先出)
 		keyEventBind: {
 			backbutton: true,
 			menubutton: true
 		},
 		titleConfig: {
 			height: "44px",
-			backgroundColor: "#f7f7f7", //瀵艰埅鏍忚儗鏅壊
-			bottomBorderColor: "#cccccc", //搴曢儴杈圭嚎棰滆壊
-			title: { //鏍囬閰嶇疆
-				text: "", //鏍囬鏂囧瓧
+			backgroundColor: "#f7f7f7", //导航栏背景色
+			bottomBorderColor: "#cccccc", //底部边线颜色
+			title: { //标题配置
+				text: "", //标题文字
 				position: {
 					top: 0,
 					left: 0,
@@ -2092,7 +2092,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	};
 
-	//榛樿椤甸潰鍔ㄧ敾
+	//默认页面动画
 	var defaultShow = {
 		event:"titleUpdate",
 		autoShow: true,
@@ -2100,7 +2100,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		aniShow: 'slide-in-right',
 		extras:{}
 	};
-	//鑻ユ墽琛屼簡鏄剧ず鍔ㄧ敾鍒濆鍖栨搷浣滐紝鍒欒瑕嗙洊榛樿閰嶇疆
+	//若执行了显示动画初始化操作，则要覆盖默认配置
 	if($.options.show) {
 		defaultShow = $.extend(true, defaultShow, $.options.show);
 	}
@@ -2110,7 +2110,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	$.extend(true, $.global, defaultOptions);
 	$.extend(true, $.options, defaultOptions);
 	/**
-	 * 绛夊緟鍔ㄧ敾閰嶇疆
+	 * 等待动画配置
 	 * @param {type} options
 	 * @returns {Object}
 	 */
@@ -2122,7 +2122,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}, options);
 	};
 	/**
-	 * 绐楀彛鏄剧ず閰嶇疆
+	 * 窗口显示配置
 	 * @param {type} options
 	 * @returns {Object}
 	 */
@@ -2130,7 +2130,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return $.extend(true, {}, defaultShow, options);
 	};
 	/**
-	 * 绐楀彛榛樿閰嶇疆
+	 * 窗口默认配置
 	 * @param {type} options
 	 * @returns {Object}
 	 */
@@ -2147,7 +2147,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	 */
 	$.plusReady = function(callback) {
 		if(window.plus) {
-			setTimeout(function() { //瑙ｅ喅callback涓巔lusready浜嬩欢鐨勬墽琛屾椂鏈洪棶棰�(鍏稿瀷妗堜緥:showWaiting,closeWaiting)
+			setTimeout(function() { //解决callback与plusready事件的执行时机问题(典型案例:showWaiting,closeWaiting)
 				callback();
 			}, 0);
 		} else {
@@ -2158,7 +2158,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return this;
 	};
 	/**
-	 * 5+ event(5+娌℃彁渚涗箣鍓嶆垜鑷繁瀹炵幇)
+	 * 5+ event(5+没提供之前我自己实现)
 	 * @param {type} webview
 	 * @param {type} eventType
 	 * @param {type} data
@@ -2178,7 +2178,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	};
 	/**
-	 * 5+ event(5+娌℃彁渚涗箣鍓嶆垜鑷繁瀹炵幇)
+	 * 5+ event(5+没提供之前我自己实现)
 	 * @param {type} eventType
 	 * @param {type} data
 	 * @returns {undefined}
@@ -2194,7 +2194,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	};
 	var triggerPreload = function(webview) {
-		if(!webview.preloaded) { //淇濊瘉浠呰Е鍙戜竴娆�
+		if(!webview.preloaded) { //保证仅触发一次
 			$.fire(webview, 'preload');
 			var list = webview.children();
 			for(var i = 0; i < list.length; i++) {
@@ -2223,10 +2223,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
 	};
 	/**
-	 * 鎵撳紑鏂扮獥鍙�
-	 * @param {string} url 瑕佹墦寮€鐨勯〉闈㈠湴鍧€
-	 * @param {string} id 鎸囧畾椤甸潰ID
-	 * @param {object} options 鍙€�:鍙傛暟,绛夊緟,绐楀彛,鏄剧ず閰嶇疆{params:{},waiting:{},styles:{},show:{}}
+	 * 打开新窗口
+	 * @param {string} url 要打开的页面地址
+	 * @param {string} id 指定页面ID
+	 * @param {object} options 可选:参数,等待,窗口,显示配置{params:{},waiting:{},styles:{},show:{}}
 	 */
 	$.openWindow = function(url, id, options) {
 		if(typeof url === 'object') {
@@ -2242,7 +2242,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			}
 		}
 		if(!$.os.plus) {
-			//TODO 鍏堜复鏃惰繖涔堝鐞嗭細鎵嬫満涓婇《灞傝烦锛孭C涓妏arent璺�
+			//TODO 先临时这么处理：手机上顶层跳，PC上parent跳
 			if($.os.ios || $.os.android) {
 				window.top.location.href = url;
 			} else {
@@ -2262,7 +2262,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
 		if($.webviews[id]) {
 			webviewCache = $.webviews[id];
-			//webview鐪熷疄瀛樺湪锛屾墠鑳借幏鍙�
+			//webview真实存在，才能获取
 			if(plus.webview.getWebviewById(id)) {
 				webview = webviewCache.webview;
 			}
@@ -2270,9 +2270,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			webview = plus.webview.getWebviewById(id);
 		}
 
-		if(webview) { //宸茬紦瀛�
-			//姣忔show閮介渶瑕佷紶閫掑姩鐢诲弬鏁帮紱
-			//棰勫姞杞界殑鍔ㄧ敾鍙傛暟浼樺厛绾э細openWindow閰嶇疆>preloadPages閰嶇疆>mui榛樿閰嶇疆锛�
+		if(webview) { //已缓存
+			//每次show都需要传递动画参数；
+			//预加载的动画参数优先级：openWindow配置>preloadPages配置>mui默认配置；
 			nShow = webviewCache ? webviewCache.show : defaultShow;
 			nShow = options.show ? $.extend(nShow, options.show) : nShow;
 			nShow.autoShow && webview.show(nShow.aniShow, nShow.duration, function() {
@@ -2283,18 +2283,18 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				webviewCache.afterShowMethodName && webview.evalJS(webviewCache.afterShowMethodName + '(\'' + JSON.stringify(params) + '\')');
 			}
 			return webview;
-		} else { //鏂扮獥鍙�
+		} else { //新窗口
 			if(!url) {
 				throw new Error('webview[' + id + '] does not exist');
 			}
 
-			//鏄剧ずwaiting
+			//显示waiting
 			var waitingConfig = $.waitingOptions(options.waiting);
 			if(waitingConfig.autoShow) {
 				nWaiting = plus.nativeUI.showWaiting(waitingConfig.title, waitingConfig.options);
 			}
 
-			//鍒涘缓椤甸潰
+			//创建页面
 			options = $.extend(options, {
 				id: id,
 				url: url
@@ -2302,21 +2302,21 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
 			webview = $.createWindow(options);
 
-			//鏄剧ず
+			//显示
 			nShow = $.showOptions(options.show);
 			if(nShow.autoShow) {
 				var showWebview = function() {
-					//鍏抽棴绛夊緟妗�
+					//关闭等待框
 					if(nWaiting) {
 						nWaiting.close();
 					}
-					//鏄剧ず椤甸潰
+					//显示页面
 					webview.show(nShow.aniShow, nShow.duration, function() {},nShow.extras);
 					options.afterShowMethodName && webview.evalJS(options.afterShowMethodName + '(\'' + JSON.stringify(params) + '\')');
 				};
-				//titleUpdate瑙﹀彂鏃舵満鏃╀簬loaded锛屾洿鎹负titleUpdate鍚庯紝鍙互鏇存棭鐨勬樉绀簑ebview
+				//titleUpdate触发时机早于loaded，更换为titleUpdate后，可以更早的显示webview
 				webview.addEventListener(nShow.event, showWebview, false);
-				//loaded浜嬩欢鍙戠敓鍚庯紝瑙﹀彂棰勫姞杞藉拰pagebeforeshow浜嬩欢
+				//loaded事件发生后，触发预加载和pagebeforeshow事件
 				webview.addEventListener("loaded", function() {
 					triggerPreload(webview);
 					trigger(webview, 'pagebeforeshow', false);
@@ -2332,7 +2332,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		var id = options.id || url;
 
 		if(!$.os.plus) {
-			//TODO 鍏堜复鏃惰繖涔堝鐞嗭細鎵嬫満涓婇《灞傝烦锛孭C涓妏arent璺�
+			//TODO 先临时这么处理：手机上顶层跳，PC上parent跳
 			if($.os.ios || $.os.android) {
 				window.top.location.href = url;
 			} else {
@@ -2351,7 +2351,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
 		if($.webviews[id]) {
 			webviewCache = $.webviews[id];
-			//webview鐪熷疄瀛樺湪锛屾墠鑳借幏鍙�
+			//webview真实存在，才能获取
 			if(plus.webview.getWebviewById(id)) {
 				webview = webviewCache.webview;
 			}
@@ -2359,9 +2359,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			webview = plus.webview.getWebviewById(id);
 		}
 
-		if(webview) { //宸茬紦瀛�
-			//姣忔show閮介渶瑕佷紶閫掑姩鐢诲弬鏁帮紱
-			//棰勫姞杞界殑鍔ㄧ敾鍙傛暟浼樺厛绾э細openWindow閰嶇疆>preloadPages閰嶇疆>mui榛樿閰嶇疆锛�
+		if(webview) { //已缓存
+			//每次show都需要传递动画参数；
+			//预加载的动画参数优先级：openWindow配置>preloadPages配置>mui默认配置；
 			nShow = webviewCache ? webviewCache.show : defaultShow;
 			nShow = options.show ? $.extend(nShow, options.show) : nShow;
 			nShow.autoShow && webview.show(nShow.aniShow, nShow.duration, function() {
@@ -2372,18 +2372,18 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				webviewCache.afterShowMethodName && webview.evalJS(webviewCache.afterShowMethodName + '(\'' + JSON.stringify(params) + '\')');
 			}
 			return webview;
-		} else { //鏂扮獥鍙�
+		} else { //新窗口
 			if(!url) {
 				throw new Error('webview[' + id + '] does not exist');
 			}
 
-			//鏄剧ずwaiting
+			//显示waiting
 			var waitingConfig = $.waitingOptions(options.waiting);
 			if(waitingConfig.autoShow) {
 				nWaiting = plus.nativeUI.showWaiting(waitingConfig.title, waitingConfig.options);
 			}
 
-			//鍒涘缓椤甸潰
+			//创建页面
 			options = $.extend(options, {
 				id: id,
 				url: url
@@ -2391,7 +2391,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
 			webview = $.createWindow(options);
 
-			if(titleConfig) { //澶勭悊鍘熺敓澶�
+			if(titleConfig) { //处理原生头
 				$.extend(true, $.options.titleConfig, titleConfig);
 				var tid = $.options.titleConfig.id ? $.options.titleConfig.id : id + "_title";
 				var view = new plus.nativeObj.View(tid, {
@@ -2401,42 +2401,42 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					dock: "top",
 					position: "dock"
 				});
-				view.drawRect($.options.titleConfig.backgroundColor); //缁樺埗鑳屾櫙鑹�
+				view.drawRect($.options.titleConfig.backgroundColor); //绘制背景色
 				var _b = parseInt($.options.titleConfig.height) - 1;
 				view.drawRect($.options.titleConfig.bottomBorderColor, {
 					top: _b + "px",
 					left: "0px"
-				}); //缁樺埗搴曢儴杈圭嚎
+				}); //绘制底部边线
 
-				//缁樺埗鏂囧瓧
+				//绘制文字
 				if($.options.titleConfig.title.text){
 					var _title = $.options.titleConfig.title;
 					view.drawText(_title.text,_title.position , _title.styles);
 				}
 				
-				//杩斿洖鍥炬爣缁樺埗
+				//返回图标绘制
 				var _back = $.options.titleConfig.back;
 				var backClick = null;
-				//浼樺厛瀛椾綋
+				//优先字体
 
-				//鍏舵鏄浘鐗�
+				//其次是图片
 				var _backImage = _back.image;
 				if(_backImage.base64Data || _backImage.imgSrc) {
-					//TODO 姝ゅ闇€瑕佸鐞嗙櫨鍒嗘瘮鐨勬儏鍐�
+					//TODO 此处需要处理百分比的情况
 					backClick = {
 						left:parseInt(_backImage.position.left),
 						right:parseInt(_backImage.position.left) + parseInt(_backImage.position.width)
 					};
 					var bitmap = new plus.nativeObj.Bitmap(id + "_back");
-					if(_backImage.base64Data) { //浼樺厛base64缂栫爜瀛楃涓�
+					if(_backImage.base64Data) { //优先base64编码字符串
 						bitmap.loadBase64Data(_backImage.base64Data);
-					} else { //鍏舵鍔犺浇鍥剧墖鏂囦欢
+					} else { //其次加载图片文件
 						bitmap.load(_backImage.imgSrc);
 					}
 					view.drawBitmap(bitmap,_backImage.sprite , _backImage.position);
 				}
 
-				//澶勭悊鐐瑰嚮浜嬩欢
+				//处理点击事件
 				view.setTouchEventRect({
 					top: "0px",
 					left: "0px",
@@ -2447,7 +2447,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				view.addEventListener("click", function(e) {
 					var x = e.clientX;
 					
-					//杩斿洖鎸夐挳鐐瑰嚮
+					//返回按钮点击
 					if(backClick&& x > backClick.left && x < backClick.right){
 						if( _back.click && $.isFunction(_back.click)){
 							_back.click();
@@ -2460,16 +2460,16 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
 			}
 
-			//鏄剧ず
+			//显示
 			nShow = $.showOptions(options.show);
 			if(nShow.autoShow) {
-				//titleUpdate瑙﹀彂鏃舵満鏃╀簬loaded锛屾洿鎹负titleUpdate鍚庯紝鍙互鏇存棭鐨勬樉绀簑ebview
+				//titleUpdate触发时机早于loaded，更换为titleUpdate后，可以更早的显示webview
 				webview.addEventListener(nShow.event, function () {
-					//鍏抽棴绛夊緟妗�
+					//关闭等待框
 					if(nWaiting) {
 						nWaiting.close();
 					}
-					//鏄剧ず椤甸潰
+					//显示页面
 					webview.show(nShow.aniShow, nShow.duration, function() {},nShow.extras);
 				}, false);
 			}
@@ -2478,7 +2478,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	};
 
 	/**
-	 * 鏍规嵁閰嶇疆淇℃伅鍒涘缓涓€涓獁ebview
+	 * 根据配置信息创建一个webview
 	 * @param {type} options
 	 * @param {type} isCreate
 	 * @returns {webview}
@@ -2490,15 +2490,15 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		var id = options.id || options.url;
 		var webview;
 		if(options.preload) {
-			if($.webviews[id] && $.webviews[id].webview.getURL()) { //宸茬粡cache
+			if($.webviews[id] && $.webviews[id].webview.getURL()) { //已经cache
 				webview = $.webviews[id].webview;
-			} else { //鏂板棰勫姞杞界獥鍙�
-				//鍒ゆ柇鏄惁鎼哄甫createNew鍙傛暟锛岄粯璁や负false
+			} else { //新增预加载窗口
+				//判断是否携带createNew参数，默认为false
 				if(options.createNew !== true) {
 					webview = plus.webview.getWebviewById(id);
 				}
 
-				//涔嬪墠娌℃湁锛岄偅灏辨柊鍒涘缓	
+				//之前没有，那就新创建	
 				if(!webview) {
 					webview = plus.webview.create(options.url, id, $.windowOptions(options.styles), $.extend({
 						preload: true
@@ -2506,9 +2506,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					if(options.subpages) {
 						$.each(options.subpages, function(index, subpage) {
 							var subpageId = subpage.id || subpage.url;
-							if(subpageId) { //杩囨护绌哄璞�
+							if(subpageId) { //过滤空对象
 								var subWebview = plus.webview.getWebviewById(subpageId);
-								if(!subWebview) { //濡傛灉璇ebview涓嶅瓨鍦紝鍒欏垱寤�
+								if(!subWebview) { //如果该webview不存在，则创建
 									subWebview = plus.webview.create(subpage.url, subpageId, $.windowOptions(subpage.styles), $.extend({
 										preload: true
 									}, subpage.extras));
@@ -2520,34 +2520,34 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				}
 			}
 
-			//TODO 鐞嗚涓婏紝瀛恮ebview涔熷簲璇ヨ绠楀埌棰勫姞杞介槦鍒椾腑锛屼絾杩欐牱灏遍夯鐑︿簡锛岃閫€蹇呴』閫€鏁翠綋锛屽惁鍒欏彲鑳藉嚭鐜伴棶棰橈紱
+			//TODO 理论上，子webview也应该计算到预加载队列中，但这样就麻烦了，要退必须退整体，否则可能出现问题；
 			$.webviews[id] = {
-				webview: webview, //鐩墠浠卲reload鐨勭紦瀛榳ebview
+				webview: webview, //目前仅preload的缓存webview
 				preload: true,
 				show: $.showOptions(options.show),
-				afterShowMethodName: options.afterShowMethodName //灏变笉搴旇鐢╡valJS銆傚簲璇ユ槸閫氳繃浜嬩欢娑堟伅閫氳
+				afterShowMethodName: options.afterShowMethodName //就不应该用evalJS。应该是通过事件消息通讯
 			};
-			//绱㈠紩璇ラ鍔犺浇绐楀彛
+			//索引该预加载窗口
 			var preloads = $.data.preloads;
 			var index = preloads.indexOf(id);
-			if(~index) { //鍒犻櫎宸插瓨鍦ㄧ殑(鍙樼浉璋冩暣鎻掑叆浣嶇疆)
+			if(~index) { //删除已存在的(变相调整插入位置)
 				preloads.splice(index, 1);
 			}
 			preloads.push(id);
 			if(preloads.length > $.options.preloadLimit) {
-				//鍏堣繘鍏堝嚭
+				//先进先出
 				var first = $.data.preloads.shift();
 				var webviewCache = $.webviews[first];
 				if(webviewCache && webviewCache.webview) {
-					//闇€瑕佸皢鑷繁鎵撳紑鐨勬墍鏈夐〉闈紝鍏ㄩ儴close锛�
-					//鍏抽棴璇ラ鍔犺浇webview	
+					//需要将自己打开的所有页面，全部close；
+					//关闭该预加载webview	
 					$.closeAll(webviewCache.webview);
 				}
-				//鍒犻櫎缂撳瓨
+				//删除缓存
 				delete $.webviews[first];
 			}
 		} else {
-			if(isCreate !== false) { //鐩存帴鍒涘缓闈為鍔犺浇绐楀彛
+			if(isCreate !== false) { //直接创建非预加载窗口
 				webview = plus.webview.create(options.url, id, $.windowOptions(options.styles), options.extras);
 				if(options.subpages) {
 					$.each(options.subpages, function(index, subpage) {
@@ -2565,10 +2565,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	};
 
 	/**
-	 * 棰勫姞杞�
+	 * 预加载
 	 */
 	$.preload = function(options) {
-		//璋冪敤棰勫姞杞藉嚱鏁帮紝涓嶇鏄惁浼犻€抪reload鍙傛暟锛屽己鍒跺彉涓簍rue
+		//调用预加载函数，不管是否传递preload参数，强制变为true
 		if(!options.preload) {
 			options.preload = true;
 		}
@@ -2576,7 +2576,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	};
 
 	/**
-	 *鍏抽棴褰撳墠webview鎵撳紑鐨勬墍鏈墂ebview锛�
+	 *关闭当前webview打开的所有webview；
 	 */
 	$.closeOpened = function(webview) {
 		var opened = webview.opened();
@@ -2585,12 +2585,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				var openedWebview = opened[i];
 				var open_open = openedWebview.opened();
 				if(open_open && open_open.length > 0) {
-					//鍏抽棴鎵撳紑鐨剋ebview
+					//关闭打开的webview
 					$.closeOpened(openedWebview);
-					//鍏抽棴鑷繁
+					//关闭自己
 					openedWebview.close("none");
 				} else {
-					//濡傛灉鐩存帴瀛╁瓙鑺傜偣锛屽氨涓嶇敤鍏抽棴浜嗭紝鍥犱负鐖跺叧闂殑鏃跺€欙紝浼氳嚜鍔ㄥ叧闂瓙锛�
+					//如果直接孩子节点，就不用关闭了，因为父关闭的时候，会自动关闭子；
 					if(openedWebview.parent() !== webview) {
 						openedWebview.close('none');
 					}
@@ -2608,18 +2608,18 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	};
 
 	/**
-	 * 鎵归噺鍒涘缓webview
+	 * 批量创建webview
 	 * @param {type} options
 	 * @returns {undefined}
 	 */
 	$.createWindows = function(options) {
 		$.each(options, function(index, option) {
-			//鍒濆鍖栭鍔犺浇绐楀彛(鍒涘缓)鍜岄潪棰勫姞杞界獥鍙�(浠呴厤缃紝涓嶅垱寤�)
+			//初始化预加载窗口(创建)和非预加载窗口(仅配置，不创建)
 			$.createWindow(option, false);
 		});
 	};
 	/**
-	 * 鍒涘缓褰撳墠椤甸潰鐨勫瓙webview
+	 * 创建当前页面的子webview
 	 * @param {type} options
 	 * @returns {webview}
 	 */
@@ -2629,15 +2629,15 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 		var id = options.id || options.url;
 		var webview;
-		if(!$.webviews[id]) { //淇濊瘉鎵ц涓€閬�
-			//TODO 杩欓噷涔熸湁闅愭偅锛屾瘮濡傛煇涓獁ebview涓嶆槸浣滀负subpage鍒涘缓鐨勶紝鑰屾槸浣滀负target webview鐨勮瘽锛�
+		if(!$.webviews[id]) { //保证执行一遍
+			//TODO 这里也有隐患，比如某个webview不是作为subpage创建的，而是作为target webview的话；
 			if(!plus.webview.getWebviewById(id)) {
 				webview = plus.webview.create(options.url, id, options.styles, options.extras);
 			}
-			//涔嬪墠鐨勫疄鐜版柟妗堬細瀛愮獥鍙oaded涔嬪悗鍐峚ppend鍒扮埗绐楀彛涓紱
-			//闂锛氶儴鍒嗗瓙绐楀彛loaded浜嬩欢鍙戠敓杈冩櫄锛屾鏃舵墽琛岀埗绐楀彛鐨刢hildren鏂规硶浼氳繑鍥炵┖锛屽鑷寸埗瀛愰€氳澶辫触锛�
-			//     姣斿鐖堕〉闈㈡墽琛屽畬preload浜嬩欢鍚庯紝闇€瑙﹀彂瀛愰〉闈㈢殑preload浜嬩欢锛屾鏃舵湭append鐨勮瘽锛屽氨鏃犳硶瑙﹀彂锛�
-			//淇敼鏂瑰紡锛氫笉鍐嶇洃鎺oaded浜嬩欢锛岀洿鎺ppend
+			//之前的实现方案：子窗口loaded之后再append到父窗口中；
+			//问题：部分子窗口loaded事件发生较晚，此时执行父窗口的children方法会返回空，导致父子通讯失败；
+			//     比如父页面执行完preload事件后，需触发子页面的preload事件，此时未append的话，就无法触发；
+			//修改方式：不再监控loaded事件，直接append
 			//by chb@20150521
 			// webview.addEventListener('loaded', function() {
 			plus.webview.currentWebview().append(webview);
@@ -2648,9 +2648,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return webview;
 	};
 
-	//鍏ㄥ眬webviews
+	//全局webviews
 	$.webviews = {};
-	//棰勫姞杞界獥鍙ｇ储寮�
+	//预加载窗口索引
 	$.data.preloads = [];
 	//$.currentWebview
 	$.plusReady(function() {
@@ -2664,25 +2664,25 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			var subpages = options.subpages || [];
 			if($.os.plus) {
 				$.plusReady(function() {
-					//TODO  杩欓噷闇€瑕佸垽鏂竴涓嬶紝鏈€濂界瓑瀛愮獥鍙ｅ姞杞藉畬姣曞悗锛屽啀璋冪敤涓荤獥鍙ｇ殑show鏂规硶锛�
-					//鎴栬€咃細鍦╫penwindow鏂规硶涓紝鐩戝惉瀹炵幇锛�
+					//TODO  这里需要判断一下，最好等子窗口加载完毕后，再调用主窗口的show方法；
+					//或者：在openwindow方法中，监听实现；
 					$.each(subpages, function(index, subpage) {
 						$.appendWebview(subpage);
 					});
-					//鍒ゆ柇鏄惁棣栭〉
+					//判断是否首页
 					if(plus.webview.currentWebview() === plus.webview.getWebviewById(plus.runtime.appid)) {
-						//棣栭〉闇€瑕佽嚜宸辨縺娲婚鍔犺浇锛�
-						//timeout鍥犱负瀛愰〉闈oaded涔嬪悗鎵峚ppend鐨勶紝闃叉瀛愰〉闈㈠皻鏈猘ppend銆佷粠鑰屽鑷村叾preload鏈Е鍙戠殑闂锛�
+						//首页需要自己激活预加载；
+						//timeout因为子页面loaded之后才append的，防止子页面尚未append、从而导致其preload未触发的问题；
 						setTimeout(function() {
 							triggerPreload(plus.webview.currentWebview());
 						}, 300);
 					}
-					//璁剧疆ios椤堕儴鐘舵€佹爮棰滆壊锛�
+					//设置ios顶部状态栏颜色；
 					if($.os.ios && $.options.statusBarBackground) {
 						plus.navigator.setStatusBarBackground($.options.statusBarBackground);
 					}
 					if($.os.android && parseFloat($.os.version) < 4.4) {
-						//瑙ｅ喅Android骞冲彴4.4鐗堟湰浠ヤ笅锛宺esume鍚庯紝鐖剁獥浣撴爣棰樺欢杩熸覆鏌撶殑闂锛�
+						//解决Android平台4.4版本以下，resume后，父窗体标题延迟渲染的问题；
 						if(plus.webview.currentWebview().parent() == null) {
 							document.addEventListener("resume", function() {
 								var body = document.body;
@@ -2695,20 +2695,20 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					}
 				});
 			} else {
-				//宸叉敮鎸乮frame宓屽叆
+				//已支持iframe嵌入
 				//				if (subpages.length > 0) {
 				//					var err = document.createElement('div');
 				//					err.className = 'mui-error';
-				//					//鏂囧瓧鎻忚堪
+				//					//文字描述
 				//					var span = document.createElement('span');
-				//					span.innerHTML = '鍦ㄨ娴忚鍣ㄤ笅锛屼笉鏀寔鍒涘缓瀛愰〉闈紝鍏蜂綋鍙傝€�';
+				//					span.innerHTML = '在该浏览器下，不支持创建子页面，具体参考';
 				//					err.appendChild(span);
 				//					var a = document.createElement('a');
-				//					a.innerHTML = '"mui妗嗘灦閫傜敤鍦烘櫙"';
+				//					a.innerHTML = '"mui框架适用场景"';
 				//					a.href = 'http://ask.dcloud.net.cn/article/113';
 				//					err.appendChild(a);
 				//					document.body.appendChild(err);
-				//					console.log('鍦ㄨ娴忚鍣ㄤ笅锛屼笉鏀寔鍒涘缓瀛愰〉闈�');
+				//					console.log('在该浏览器下，不支持创建子页面');
 				//				}
 
 			}
@@ -2716,7 +2716,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	});
 	window.addEventListener('preload', function() {
-		//澶勭悊棰勫姞杞介儴鍒�
+		//处理预加载部分
 		var webviews = $.options.preloadPages || [];
 		$.plusReady(function() {
 			$.each(webviews, function(index, webview) {
@@ -2731,7 +2731,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return $.os.plus && $.os.ios && parseFloat($.os.version) >= 7;
 	};
 	$.ready(function() {
-		//鏍囪瘑褰撳墠鐜鏀寔statusbar
+		//标识当前环境支持statusbar
 		if($.supportStatusbarOffset()) {
 			document.body.classList.add('mui-statusbar');
 		}
@@ -2768,7 +2768,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	});
 	/**
-	 * 鍚庨€€
+	 * 后退
 	 */
 	$.back = function() {
 		if (typeof $.options.beforeback === 'function') {
@@ -2805,7 +2805,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			name: 'mui',
 			index: 5,
 			handle: function() {
-				//鍚庣画閲嶆柊璁捐姝ゅ锛屽皢back鏀惧埌鍚勪釜绌洪棿鍐呴儴瀹炵幇
+				//后续重新设计此处，将back放到各个空间内部实现
 				//popover
 				if ($.targets._popover && $.targets._popover.classList.contains('mui-active')) {
 					$($.targets._popover).popover('hide');
@@ -2827,7 +2827,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			}
 		});
 	}
-	//棣栨鎸変笅back鎸夐敭鐨勬椂闂�
+	//首次按下back按键的时间
 	$.__back__first = null;
 	/**
 	 * 5+ back
@@ -2845,17 +2845,17 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				parent.evalJS('mui&&mui.back();');
 			} else {
 				wobj.canBack(function(e) {
-					//by chb 鏆傛椂娉ㄩ噴锛屽湪纰板埌绫讳技popover涔嬬被鐨勯敋鐐圭殑鏃跺€欙紝闇€澶氭鐐瑰嚮鎵嶈兘杩斿洖锛�
+					//by chb 暂时注释，在碰到类似popover之类的锚点的时候，需多次点击才能返回；
 					if (e.canBack) { //webview history back
 						window.history.back();
 					} else { //webview close or hide
-						//fixed by fxy 姝ゅ涓嶅簲璇ョ敤opener鍒ゆ柇锛屽洜涓虹敤鎴锋湁鍙兘鑷繁close鎺夊綋鍓嶇獥鍙ｇ殑opener銆傝繖鏍风殑璇濄€俹pener灏变负绌轰簡锛屽鑷翠笉鑳芥墽琛宑lose
-						if (wobj.id === plus.runtime.appid) { //棣栭〉
-							//棣栭〉涓嶅瓨鍦╫pener鐨勬儏鍐典笅锛屽悗閫€瀹為檯涓婂簲璇ユ槸閫€鍑哄簲鐢紱
-							//棣栨鎸夐敭锛屾彁绀衡€樺啀鎸変竴娆￠€€鍑哄簲鐢ㄢ€�
+						//fixed by fxy 此处不应该用opener判断，因为用户有可能自己close掉当前窗口的opener。这样的话。opener就为空了，导致不能执行close
+						if (wobj.id === plus.runtime.appid) { //首页
+							//首页不存在opener的情况下，后退实际上应该是退出应用；
+							//首次按键，提示‘再按一次退出应用’
 							if (!$.__back__first) {
 								$.__back__first = new Date().getTime();
-								mui.toast('鍐嶆寜涓€娆￠€€鍑哄簲鐢�');
+								mui.toast('再按一次退出应用');
 								setTimeout(function() {
 									$.__back__first = null;
 								}, 2000);
@@ -2864,11 +2864,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 									plus.runtime.quit();
 								}
 							}
-						} else { //鍏朵粬椤甸潰锛�
+						} else { //其他页面，
 							if (wobj.preload) {
 								wobj.hide("auto");
 							} else {
-								//鍏抽棴椤甸潰鏃讹紝闇€瑕佸皢鍏舵墦寮€鐨勬墍鏈夊瓙椤甸潰鍏ㄩ儴鍏抽棴锛�
+								//关闭页面时，需要将其打开的所有子页面全部关闭；
 								$.closeAll(wobj);
 							}
 						}
@@ -2883,13 +2883,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	$.menu = function() {
 		var menu = document.querySelector('.mui-action-menu');
 		if (menu) {
-			$.trigger(menu, $.EVENT_START); //涓存椂澶勭悊menu鏃爐ouchstart鐨勮瘽锛屾壘涓嶅埌褰撳墠targets鐨勯棶棰�
+			$.trigger(menu, $.EVENT_START); //临时处理menu无touchstart的话，找不到当前targets的问题
 			$.trigger(menu, 'tap');
-		} else { //鎵ц鐖剁獥鍙ｇ殑menu
+		} else { //执行父窗口的menu
 			if (window.plus) {
 				var wobj = $.currentWebview;
 				var parent = wobj.parent();
-				if (parent) { //鍙堝緱evalJS
+				if (parent) { //又得evalJS
 					parent.evalJS('mui&&mui.menu();');
 				}
 			}
@@ -2901,7 +2901,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	var __menu = function() {
 		$.menu();
 	};
-	//榛樿鐩戝惉
+	//默认监听
 	$.plusReady(function() {
 		if ($.options.keyEventBind.backbutton) {
 			plus.key.addEventListener('backbutton', __back, false);
@@ -2910,13 +2910,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			plus.key.addEventListener('menubutton', __menu, false);
 		}
 	});
-	//澶勭悊鎸夐敭鐩戝惉浜嬩欢
+	//处理按键监听事件
 	$.addInit({
 		name: 'keyEventBind',
 		index: 1000,
 		handle: function() {
 			$.plusReady(function() {
-				//濡傛灉涓嶄负true锛屽垯绉婚櫎榛樿鐩戝惉
+				//如果不为true，则移除默认监听
 				if (!$.options.keyEventBind.backbutton) {
 					plus.key.removeEventListener('backbutton', __back);
 				}
@@ -2946,24 +2946,24 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				if(container) {
 					var $container = $(container);
 					if($container.length === 1) {
-						if($.os.plus) { //5+鐜
-							if(hasPulldown && pullRefreshOptions.down.style == "circle") { //鍘熺敓杞湀
+						if($.os.plus) { //5+环境
+							if(hasPulldown && pullRefreshOptions.down.style == "circle") { //原生转圈
 								$.plusReady(function() {
-									//杩欓噷鏀瑰啓$.fn.pullRefresh
+									//这里改写$.fn.pullRefresh
 									$.fn.pullRefresh = $.fn.pullRefresh_native;
 									$container.pullRefresh(pullRefreshOptions);
 								});
 
-							} else if($.os.android) { //闈炲師鐢熻浆鍦堬紝浣嗘槸Android鐜
+							} else if($.os.android) { //非原生转圈，但是Android环境
 								$.plusReady(function() {
-									//杩欓噷鏀瑰啓$.fn.pullRefresh
+									//这里改写$.fn.pullRefresh
 									$.fn.pullRefresh = $.fn.pullRefresh_native
 									var webview = plus.webview.currentWebview();
-									if(window.__NWin_Enable__ === false) { //涓嶆敮鎸佸webview
+									if(window.__NWin_Enable__ === false) { //不支持多webview
 										$container.pullRefresh(pullRefreshOptions);
 									} else {
 										if(hasPullup) {
-											//褰撳墠椤甸潰鍒濆鍖杙ullup
+											//当前页面初始化pullup
 											var upOptions = {};
 											upOptions.up = pullRefreshOptions.up;
 											upOptions.webviewId = webview.id || webview.getURL();
@@ -2973,25 +2973,25 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 											var parent = webview.parent();
 											var id = webview.id || webview.getURL();
 											if(parent) {
-												if(!hasPullup) { //濡傛灉娌℃湁涓婃媺鍔犺浇锛岄渶瑕佹墜鍔ㄥ垵濮嬪寲涓€涓粯璁ょ殑pullRefresh锛屼互渚垮綋鍓嶉〉闈㈠鍣ㄥ彲浠ヨ皟鐢╡ndPulldownToRefresh绛夋柟娉�
+												if(!hasPullup) { //如果没有上拉加载，需要手动初始化一个默认的pullRefresh，以便当前页面容器可以调用endPulldownToRefresh等方法
 													$container.pullRefresh({
 														webviewId: id
 													});
 												}
 												var downOptions = {
-													webviewId: id//瀛愰〉闈d
+													webviewId: id//子页面id
 												};
 												downOptions.down = $.extend({}, pullRefreshOptions.down);
 												downOptions.down.callback = '_CALLBACK';
-												//鏀瑰啓鐖堕〉闈㈢殑$.fn.pullRefresh
+												//改写父页面的$.fn.pullRefresh
 												parent.evalJS("mui.fn.pullRefresh=mui.fn.pullRefresh_native");
-												//鐖堕〉闈㈠垵濮嬪寲pulldown
+												//父页面初始化pulldown
 												parent.evalJS("mui&&mui(document.querySelector('.mui-content')).pullRefresh('" + JSON.stringify(downOptions) + "')");
 											}
 										}
 									}
 								});
-							} else { //闈炲師鐢熻浆鍦堬紝iOS鐜
+							} else { //非原生转圈，iOS环境
 								$container.pullRefresh(pullRefreshOptions);
 							}
 						} else {
@@ -3305,10 +3305,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	$.plusReady(function() {
 		$.ajaxSettings = $.extend($.ajaxSettings, {
 			xhr: function(settings) {
-				if (settings.crossDomain) { //寮哄埗浣跨敤plus璺ㄥ煙
+				if (settings.crossDomain) { //强制使用plus跨域
 					return new plus.net.XMLHttpRequest();
 				}
-				//浠呭湪webview鐨剈rl涓鸿繙绋嬫枃浠讹紝涓攁jax璇锋眰鐨勮祫婧愪笉鍚屾簮涓嬩娇鐢╬lus.net.XMLHttpRequest
+				//仅在webview的url为远程文件，且ajax请求的资源不同源下使用plus.net.XMLHttpRequest
 				if (originAnchor.protocol !== 'file:') {
 					var urlAnchor = document.createElement('a');
 					urlAnchor.href = settings.url;
@@ -3318,7 +3318,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 						return new plus.net.XMLHttpRequest();
 					}
 				}
-				if ($.os.ios && window.webkit && window.webkit.messageHandlers) { //wkwebview涓嬪悓鏍蜂娇鐢�5+ xhr
+				if ($.os.ios && window.webkit && window.webkit.messageHandlers) { //wkwebview下同样使用5+ xhr
                     return new plus.net.XMLHttpRequest();
                 }
 				return new window.XMLHttpRequest();
@@ -3460,18 +3460,18 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 deceleration: 0.003,
                 down: {
                     height: 50,
-                    contentinit: '涓嬫媺鍙互鍒锋柊',
-                    contentdown: '涓嬫媺鍙互鍒锋柊',
-                    contentover: '閲婃斁绔嬪嵆鍒锋柊',
-                    contentrefresh: '姝ｅ湪鍒锋柊...'
+                    contentinit: '下拉可以刷新',
+                    contentdown: '下拉可以刷新',
+                    contentover: '释放立即刷新',
+                    contentrefresh: '正在刷新...'
                 },
                 up: {
                     height: 50,
                     auto: false,
-                    contentinit: '涓婃媺鏄剧ず鏇村',
-                    contentdown: '涓婃媺鏄剧ず鏇村',
-                    contentrefresh: '姝ｅ湪鍔犺浇...',
-                    contentnomore: '娌℃湁鏇村鏁版嵁浜�',
+                    contentinit: '上拉显示更多',
+                    contentdown: '上拉显示更多',
+                    contentrefresh: '正在加载...',
+                    contentnomore: '没有更多数据了',
                     duration: 300
                 }
             }, options));
@@ -3648,12 +3648,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			this.stopped = false;
 
 			this.options = $.extend(true, {
-				scrollY: true, //鏄惁绔栧悜婊氬姩
-				scrollX: false, //鏄惁妯悜婊氬姩
-				startX: 0, //鍒濆鍖栨椂婊氬姩鑷硏
-				startY: 0, //鍒濆鍖栨椂婊氬姩鑷硑
+				scrollY: true, //是否竖向滚动
+				scrollX: false, //是否横向滚动
+				startX: 0, //初始化时滚动至x
+				startY: 0, //初始化时滚动至y
 
-				indicators: true, //鏄惁鏄剧ず婊氬姩鏉�
+				indicators: true, //是否显示滚动条
 				stopPropagation: false,
 				hardwareAccelerated: true,
 				fixedBadAndorid: false,
@@ -3662,19 +3662,19 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				},
 				momentum: true,
 
-				snapX: 0.5, //妯悜鍒囨崲璺濈(浠ュ綋鍓嶅鍣ㄥ搴︿负鍩哄噯)
-				snap: false, //鍥剧墖杞挱锛屾嫋鎷藉紡閫夐」鍗�
+				snapX: 0.5, //横向切换距离(以当前容器宽度为基准)
+				snap: false, //图片轮播，拖拽式选项卡
 
-				bounce: true, //鏄惁鍚敤鍥炲脊
-				bounceTime: 500, //鍥炲脊鍔ㄧ敾鏃堕棿
-				bounceEasing: ease.outCirc, //鍥炲脊鍔ㄧ敾鏇茬嚎
+				bounce: true, //是否启用回弹
+				bounceTime: 500, //回弹动画时间
+				bounceEasing: ease.outCirc, //回弹动画曲线
 
 				scrollTime: 500,
-				scrollEasing: ease.outCubic, //杞挱鍔ㄧ敾鏇茬嚎
+				scrollEasing: ease.outCubic, //轮播动画曲线
 
 				directionLockThreshold: 5,
 
-				parallaxElement: false, //瑙嗗樊鍏冪礌
+				parallaxElement: false, //视差元素
 				parallaxRatio: 0.5
 			}, options);
 
@@ -3685,7 +3685,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			this._init();
 			if (this.scroller) {
 				this.refresh();
-				//				if (this.options.startX !== 0 || this.options.startY !== 0) { //闇€瑕佸垽鏂悧锛熷悗缁牴鎹疄闄呮儏鍐靛啀鐪嬬湅
+				//				if (this.options.startX !== 0 || this.options.startY !== 0) { //需要判断吗？后续根据实际情况再看看
 				this.scrollTo(this.options.startX, this.options.startY);
 				//				}
 			}
@@ -3838,7 +3838,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				this.wrapper[action]('swiperight', this);
 			}
 			var segmentedControl = this.wrapper.querySelector('.mui-segmented-control');
-			if (segmentedControl) { //闈狅紝杩欎釜bug鎺掓煡浜嗕竴涓嬪崍锛岄樆姝ash璺宠浆锛屼竴鏃ash璺宠浆浼氬鑷村彲鎷栨嫿閫夐」鍗＄殑tab涓嶈
+			if (segmentedControl) { //靠，这个bug排查了一下午，阻止hash跳转，一旦hash跳转会导致可拖拽选项卡的tab不见
 				mui(segmentedControl)[detach ? 'off' : 'on']('click', 'a', $.preventDefault);
 			}
 
@@ -3942,11 +3942,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			//				return;
 			//			}
 			var detail = e.detail;
-			if (this.options.scrollY || detail.direction === 'up' || detail.direction === 'down') { //濡傛灉鏄珫鍚戞粴鍔ㄦ垨鎵嬪娍鏂瑰悜鏄笂鎴栦笅
+			if (this.options.scrollY || detail.direction === 'up' || detail.direction === 'down') { //如果是竖向滚动或手势方向是上或下
 				//ios8 hack
-				if ($.os.ios && parseFloat($.os.version) >= 8) { //澶歸ebview鏃讹紝绂诲紑褰撳墠webview浼氬鑷村悗缁璽ouch浜嬩欢涓嶈Е鍙�
+				if ($.os.ios && parseFloat($.os.version) >= 8) { //多webview时，离开当前webview会导致后续touch事件不触发
 					var clientY = detail.gesture.touches[0].clientY;
-					//涓嬫媺鍒锋柊 or 涓婃媺鍔犺浇
+					//下拉刷新 or 上拉加载
 					if ((clientY + 10) > window.innerHeight || clientY < 10) {
 						this.resetPosition(this.options.bounceTime);
 						return;
@@ -3958,11 +3958,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			if (detail.direction === 'left' || detail.direction === 'right') {
 				if (this.options.scrollX) {
 					isPreventDefault = true;
-					if (!this.moved) { //璇嗗埆瑙掑害(璇ヨ搴﹀鑷磋疆鎾笉鐏垫晱)
+					if (!this.moved) { //识别角度(该角度导致轮播不灵敏)
 						//						if (direction !== 'left' && direction !== 'right') {
 						//							isReturn = true;
 						//						} else {
-						$.gestures.session.lockDirection = true; //閿佸畾鏂瑰悜
+						$.gestures.session.lockDirection = true; //锁定方向
 						$.gestures.session.startDirection = detail.direction;
 						//						}
 					}
@@ -3972,13 +3972,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			} else if (detail.direction === 'up' || detail.direction === 'down') {
 				if (this.options.scrollY) {
 					isPreventDefault = true;
-					//					if (!this.moved) { //璇嗗埆瑙掑害,绔栧悜婊氬姩浼间箮娌″繀瑕佽繘琛屽皬瑙掑害楠岃瘉
+					//					if (!this.moved) { //识别角度,竖向滚动似乎没必要进行小角度验证
 					//						if (direction !== 'up' && direction !== 'down') {
 					//							isReturn = true;
 					//						}
 					//					}
 					if (!this.moved) {
-						$.gestures.session.lockDirection = true; //閿佸畾鏂瑰悜
+						$.gestures.session.lockDirection = true; //锁定方向
 						$.gestures.session.startDirection = detail.direction;
 					}
 				} else if (this.options.scrollX && !this.moved) {
@@ -3988,16 +3988,16 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				isReturn = true;
 			}
 			if (this.moved || isPreventDefault) {
-				e.stopPropagation(); //闃绘鍐掓场(scroll绫诲祵濂�)
+				e.stopPropagation(); //阻止冒泡(scroll类嵌套)
 				detail.gesture && detail.gesture.preventDefault();
 			}
-			if (isReturn) { //绂佹闈炴硶鏂瑰悜婊氬姩
+			if (isReturn) { //禁止非法方向滚动
 				return;
 			}
 			if (!this.moved) {
 				$.trigger(this.scroller, 'scrollstart', this);
 			} else {
-				e.stopPropagation(); //move鏈熼棿闃绘鍐掓场(scroll宓屽)
+				e.stopPropagation(); //move期间阻止冒泡(scroll嵌套)
 			}
 			var deltaX = 0;
 			var deltaY = 0;
@@ -4126,12 +4126,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		_transitionTime: function(time) {
 			time = time || 0;
 			this.scrollerStyle['webkitTransitionDuration'] = time + 'ms';
-			if (this.parallaxElement && this.options.scrollY) { //鐩墠浠呮敮鎸佺珫鍚戣宸晥鏋�
+			if (this.parallaxElement && this.options.scrollY) { //目前仅支持竖向视差效果
 				this.parallaxStyle['webkitTransitionDuration'] = time + 'ms';
 			}
 			if (this.options.fixedBadAndorid && !time && $.os.isBadAndroid) {
 				this.scrollerStyle['webkitTransitionDuration'] = '0.001s';
-				if (this.parallaxElement && this.options.scrollY) { //鐩墠浠呮敮鎸佺珫鍚戣宸晥鏋�
+				if (this.parallaxElement && this.options.scrollY) { //目前仅支持竖向视差效果
 					this.parallaxStyle['webkitTransitionDuration'] = '0.001s';
 				}
 			}
@@ -4140,7 +4140,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					this.indicators[i].transitionTime(time);
 				}
 			}
-			if (time) { //鑷畾涔塼imer锛屼繚璇亀ebkitTransitionEnd濮嬬粓瑙﹀彂
+			if (time) { //自定义timer，保证webkitTransitionEnd始终触发
 				this.transitionTimer && this.transitionTimer.cancel();
 				this.transitionTimer = $.later(function() {
 					$.trigger(this.scroller, 'webkitTransitionEnd');
@@ -4149,7 +4149,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		},
 		_transitionTimingFunction: function(easing) {
 			this.scrollerStyle['webkitTransitionTimingFunction'] = easing;
-			if (this.parallaxElement && this.options.scrollY) { //鐩墠浠呮敮鎸佺珫鍚戣宸晥鏋�
+			if (this.parallaxElement && this.options.scrollY) { //目前仅支持竖向视差效果
 				this.parallaxStyle['webkitTransitionDuration'] = easing;
 			}
 			if (this.indicators) {
@@ -4216,7 +4216,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				indicator.refresh();
 			});
 
-			//浠ラ槻slider绫诲祵濂椾娇鐢�
+			//以防slider类嵌套使用
 			if (this.options.snap && typeof this.options.snap === 'string') {
 				var items = this.scroller.querySelectorAll(this.options.snap);
 				this.itemLength = 0;
@@ -4228,7 +4228,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 						this.snaps.push(item);
 					}
 				}
-				this._initSnap(); //闇€瑕佹瘡娆￠兘_initSnap涔堛€傚叾瀹瀒nit鐨勬椂鍊欐墽琛屼竴娆★紝鍚庣画resize鐨勬椂鍊欐墽琛屼竴娆″氨琛屼簡鍚�.鍏堣繖涔堝仛鍚э紝濡傛灉褰卞搷鎬ц兘锛屽啀璋冩暣
+				this._initSnap(); //需要每次都_initSnap么。其实init的时候执行一次，后续resize的时候执行一次就行了吧.先这么做吧，如果影响性能，再调整
 			}
 		},
 		_momentum: function(current, distance, time, lowerMargin, wrapperSize, deceleration) {
@@ -4264,7 +4264,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		setStopped: function(stopped) {
 			// this.stopped = !!stopped;
 
-			// fixed ios鍙寃ebview妯″紡涓嬫媺鍒锋柊
+			// fixed ios双webview模式下拉刷新
 			if(stopped) {
 				this.disablePullupToRefresh();
 				this.disablePulldownToRefresh();
@@ -4277,7 +4277,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			this.x = x;
 			this.y = y;
 			this.scrollerStyle['webkitTransform'] = this._getTranslateStr(x, y);
-			if (this.parallaxElement && this.options.scrollY) { //鐩墠浠呮敮鎸佺珫鍚戣宸晥鏋�
+			if (this.parallaxElement && this.options.scrollY) { //目前仅支持竖向视差效果
 				var parallaxY = y * this.options.parallaxRatio;
 				var scale = 1 + parallaxY / ((this.parallaxHeight - parallaxY) / 2);
 				if (scale > 1) {
@@ -4363,7 +4363,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		scrollTo: function(x, y, time, easing) {
 			var easing = easing || ease.circular;
 			//			this.isInTransition = time > 0 && (this.lastX != x || this.lastY != y);
-			//鏆備笉涓ユ牸鍒ゆ柇x,y锛屽惁鍒欎細瀵艰嚧閮ㄥ垎鐗堟湰涓婁笉姝ｅ父瑙﹀彂杞挱
+			//暂不严格判断x,y，否则会导致部分版本上不正常触发轮播
 			this.isInTransition = time > 0;
 			if (this.isInTransition) {
 				this._clearRequestAnimationFrame();
@@ -4580,7 +4580,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             }
         },
         _start: function(e) {
-            //浠呬笅鎷夊埛鏂板湪start闃绘榛樿浜嬩欢
+            //仅下拉刷新在start阻止默认事件
             if (e.touches && e.touches.length && e.touches[0].clientX > 30) {
                 e.target && !this._preventDefaultException(e.target, this.options.preventDefaultException) && e.preventDefault();
             }
@@ -4590,7 +4590,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             this._super(e);
         },
         _drag: function(e) {
-            if (this.y >= 0 && this.disablePulldown && e.detail.direction === 'down') { //绂佺敤涓嬫媺鍒锋柊
+            if (this.y >= 0 && this.disablePulldown && e.detail.direction === 'down') { //禁用下拉刷新
                 return;
             }
             this._super(e);
@@ -4619,7 +4619,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             return this._super(time);
         },
         pulldownLoading: function(y, time) {
-            typeof y === 'undefined' && (y = this.options.down.height); //榛樿楂樺害
+            typeof y === 'undefined' && (y = this.options.down.height); //默认高度
             this.scrollTo(0, y, time, this.options.bounceEasing);
             if (this.loading) {
                 return;
@@ -4725,12 +4725,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             } else {
                 pullRefreshApi = $.data[id];
             }
-            if (options.down && options.down.auto) { //濡傛灉璁剧疆浜哸uto锛屽垯鑷姩涓嬫媺涓€娆�
+            if (options.down && options.down.auto) { //如果设置了auto，则自动下拉一次
                 pullRefreshApi.pulldownLoading(options.down.autoY);
-            } else if (options.up && options.up.auto) { //濡傛灉璁剧疆浜哸uto锛屽垯鑷姩涓婃媺涓€娆�
+            } else if (options.up && options.up.auto) { //如果设置了auto，则自动上拉一次
                 pullRefreshApi.pullupLoading();
             }
-            //鏆備笉鎻愪緵杩欑璋冪敤鏂瑰紡鍚�			
+            //暂不提供这种调用方式吧			
             //			if (typeof options === 'string') {
             //				var methodValue = pullRefreshApi[options].apply(pullRefreshApi, $.slice.call(arguments, 1));
             //				if (methodValue !== undefined) {
@@ -4742,7 +4742,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
     };
 })(mui, window, document);
 /**
- * snap 閲嶆瀯
+ * snap 重构
  * @param {Object} $
  * @param {Object} window
  */
@@ -4765,13 +4765,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		init: function(element, options) {
 			this._super(element, $.extend(true, {
 				fingers: 1,
-				interval: 0, //璁剧疆涓�0锛屽垯涓嶅畾鏃惰疆鎾�
+				interval: 0, //设置为0，则不定时轮播
 				scrollY: false,
 				scrollX: true,
 				indicators: false,
 				scrollTime: 1000,
 				startX: false,
-				slideTime: 0, //婊戝姩鍔ㄧ敾鏃堕棿
+				slideTime: 0, //滑动动画时间
 				snap: SELECTOR_SLIDER_ITEM
 			}, options));
 			if (this.options.startX) {
@@ -4787,12 +4787,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					this.progressBarWidth = this.progressBar.offsetWidth;
 					this.progressBarStyle = this.progressBar.style;
 				}
-				//蹇樿杩欎釜浠ｇ爜鏄共浠€涔堢殑浜嗭紵
+				//忘记这个代码是干什么的了？
 				//				this.x = this._getScroll();
 				//				if (this.options.startX === false) {
 				//					this.options.startX = this.x;
 				//				}
-				//鏍规嵁active淇startX
+				//根据active修正startX
 
 				this._super();
 				this._initTimer();
@@ -4856,13 +4856,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					$(indicatorWrap).scroll().gotoPage(detail.slideNumber);
 				}
 				var indicators = indicatorWrap.querySelectorAll('.mui-indicator');
-				if (indicators.length > 0) { //鍥剧墖杞挱
+				if (indicators.length > 0) { //图片轮播
 					for (var i = 0, len = indicators.length; i < len; i++) {
 						indicators[i].classList[i === detail.slideNumber ? 'add' : 'remove'](CLASS_ACTIVE);
 					}
 				} else {
 					var number = indicatorWrap.querySelector('.mui-number span');
-					if (number) { //鍥炬枃琛ㄦ牸
+					if (number) { //图文表格
 						number.innerText = (detail.slideNumber + 1);
 					} else { //segmented controls
 						var controlItems = indicatorWrap.querySelectorAll('.mui-control-item');
@@ -4900,7 +4900,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					this._handleSlide(e);
 					break;
 				case $.eventName('shown', 'tab'):
-					if (~this.snaps.indexOf(e.target)) { //閬垮厤宓屽鐩戝惉閿欒鐨則ab show
+					if (~this.snaps.indexOf(e.target)) { //避免嵌套监听错误的tab show
 						this._handleTabShow(e);
 					}
 					break;
@@ -4914,7 +4914,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			this._super(e);
 			var direction = e.detail.direction;
 			if (direction === 'left' || direction === 'right') {
-				//鎷栨嫿鏈熼棿鍙栨秷瀹氭椂
+				//拖拽期间取消定时
 				var slidershowTimer = this.wrapper.getAttribute('data-slidershowTimer');
 				slidershowTimer && window.clearTimeout(slidershowTimer);
 
@@ -4932,10 +4932,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					if (!slider) {
 						return;
 					}
-					//浠卻lider鏄剧ず鐘舵€佽繘琛岃嚜鍔ㄨ疆鎾�
+					//仅slider显示状态进行自动轮播
 					if (!!(slider.offsetWidth || slider.offsetHeight)) {
 						self.nextItem(true);
-						//涓嬩竴涓�
+						//下一个
 					}
 					self._initTimer();
 				}, interval);
@@ -4975,7 +4975,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			$.trigger(this.wrapper, 'scrollend', this);
 		},
 		_flick: function(e) {
-			if (!this.moved) { //鏃爉oved
+			if (!this.moved) { //无moved
 				return;
 			}
 			var detail = e.detail;
@@ -4987,7 +4987,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			//				return;
 			//			}
 			if (e.type === 'flick') {
-				if (detail.deltaTime < 200) { //flick锛屽お瀹规槗瑙﹀彂锛岄澶栨牎楠屼竴涓媎eltaTime
+				if (detail.deltaTime < 200) { //flick，太容易触发，额外校验一下deltaTime
 					this.x = this._getPage((this.slideNumber + (direction === 'right' ? -1 : 1)), true).x;
 				}
 				this.resetPosition(this.options.bounceTime);
@@ -5001,7 +5001,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			this.maxScrollX = Math.min(this.wrapperWidth - this.scrollerWidth, 0);
 			this._super();
 			if (!this.currentPage.x) {
-				//褰搒lider澶勪簬闅愯棌鐘舵€佹椂锛屽鑷磗nap璁＄畻鏄敊璇殑锛屼复鏃跺厛杩欎箞鍒ゆ柇涓€涓嬶紝鍚庣画瑕佽€冭檻瑙ｅ喅鎵€鏈塻croll鍦ㄩ殣钘忕姸鎬佷笅鍒濆鍖栧睘鎬т笉姝ｇ‘鐨勯棶棰�
+				//当slider处于隐藏状态时，导致snap计算是错误的，临时先这么判断一下，后续要考虑解决所有scroll在隐藏状态下初始化属性不正确的问题
 				var currentPage = this.pages[this.loop ? 1 : 0];
 				currentPage = currentPage || this.pages[0];
 				if (!currentPage) {
@@ -5045,7 +5045,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			return this.pages[slideNumber][0];
 		},
 		_gotoItem: function(slideNumber, time) {
-			this.currentPage = this._getPage(slideNumber, true); //姝ゅ浼爐rue銆傚彲淇濊瘉绋嬪簭鍒囨崲鏃讹紝鍔ㄧ敾涓庝汉鎵嬫搷浣滀竴鑷�(绗竴寮狅紝鏈€鍚庝竴寮犵殑鍒囨崲鍔ㄧ敾)
+			this.currentPage = this._getPage(slideNumber, true); //此处传true。可保证程序切换时，动画与人手操作一致(第一张，最后一张的切换动画)
 			this.scrollTo(this.currentPage.x, 0, time, this.options.scrollEasing);
 			if (time === 0) {
 				$.trigger(this.wrapper, 'scrollend', this);
@@ -5143,7 +5143,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			indicators: false,
 			snap: '.mui-control-item'
 		});
-		//		}, 500); //涓存椂澶勭悊slider瀹藉害璁＄畻涓嶆纭殑闂(鍒濇纭鏄痵crollbar瀵艰嚧鐨�)
+		//		}, 500); //临时处理slider宽度计算不正确的问题(初步确认是scrollbar导致的)
 
 	});
 })(mui, window);
@@ -5153,11 +5153,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
  * @returns {undefined}
  */
 (function($, document) {
-    if (!($.os.plus)) { //浠呭湪5+android鏀寔澶歸ebview鐨勪娇鐢�
+    if (!($.os.plus)) { //仅在5+android支持多webview的使用
         return;
     }
     $.plusReady(function() {
-        if (window.__NWin_Enable__ === false) { //涓嶆敮鎸佸webview锛屽垯涓嶇敤5+涓嬫媺鍒锋柊
+        if (window.__NWin_Enable__ === false) { //不支持多webview，则不用5+下拉刷新
             return;
         }
         var CLASS_PLUS_PULLREFRESH = 'mui-plus-pullrefresh';
@@ -5186,7 +5186,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 self.scrollInterval = window.setInterval(function() {
                     if (self.isScroll && !self.loading) {
                         if (window.pageYOffset + window.innerHeight + 10 >= document.documentElement.scrollHeight) {
-                            self.isScroll = false; //鏀惧湪杩欓噷鏄洜涓哄揩閫熸粴鍔ㄧ殑璇濓紝鏈夊彲鑳芥娴嬫椂锛岃繕娌″埌搴曪紝鎵€浠ュ彧瑕佹湁婊氬姩锛屾病鍒板簳涔嬪墠涓€鐩存娴嬮珮搴﹀彉鍖�
+                            self.isScroll = false; //放在这里是因为快速滚动的话，有可能检测时，还没到底，所以只要有滚动，没到底之前一直检测高度变化
                             if (self.bottomPocket) {
                                 self.pullupLoading();
                             }
@@ -5198,7 +5198,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 var self = this;
                 $.plusReady(function() {
                     if (self.options.down.style == "circle") {
-                        //鍗晈ebview銆佸師鐢熻浆鍦�
+                        //单webview、原生转圈
                         self.options.webview = plus.webview.currentWebview();
                         self.options.webview.setPullToRefresh({
                             support: true,
@@ -5211,7 +5211,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                             self.options.down.callback();
                         });
                     } else if (self.topPocket && self.options.webviewId) {
-                        var webview = plus.webview.getWebviewById(self.options.webviewId); //瀛愮獥鍙�
+                        var webview = plus.webview.getWebviewById(self.options.webviewId); //子窗口
                         if (!webview) {
                             return;
                         }
@@ -5219,7 +5219,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                         var downOptions = self.options.down;
                         var height = downOptions.height;
                         webview.addEventListener('close', function() {
-                            var attrWebviewId = self.options.webviewId && self.options.webviewId.replace(/\//g, "_"); //鏇挎崲鎵€鏈�"/" 
+                            var attrWebviewId = self.options.webviewId && self.options.webviewId.replace(/\//g, "_"); //替换所有"/" 
                             self.element.removeAttribute('data-pullrefresh-plus-' + attrWebviewId);
                         });
                         webview.addEventListener("dragBounce", function(e) {
@@ -5229,14 +5229,14 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                                 self.pullPocket.classList.add(CLASS_BLOCK);
                             }
                             switch (e.status) {
-                                case "beforeChangeOffset": //涓嬫媺鍙埛鏂扮姸鎬�
+                                case "beforeChangeOffset": //下拉可刷新状态
                                     self._setCaption(downOptions.contentdown);
                                     break;
-                                case "afterChangeOffset": //鏉惧紑鍙埛鏂扮姸鎬�
+                                case "afterChangeOffset": //松开可刷新状态
                                     self._setCaption(downOptions.contentover);
                                     break;
-                                case "dragEndAfterChangeOffset": //姝ｅ湪鍒锋柊鐘舵€�
-                                    //鎵ц涓嬫媺鍒锋柊鎵€鍦╳ebview鐨勫洖璋冨嚱鏁�
+                                case "dragEndAfterChangeOffset": //正在刷新状态
+                                    //执行下拉刷新所在webview的回调函数
                                     webview.evalJS("window.mui&&mui.options.pullRefresh.down.callback()");
                                     self._setCaption(downOptions.contentrefresh);
                                     break;
@@ -5271,9 +5271,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 }
             }
         }).extend($.extend({
-            setStopped: function(stopped) { //璇ユ柟娉曟槸瀛愰〉闈㈣皟鐢ㄧ殑
+            setStopped: function(stopped) { //该方法是子页面调用的
                 this.stopped = !!stopped;
-                // TODO 姝ゅ闇€瑕佽缃綋鍓峸ebview鐨刡ounce涓簄one,鐩墠5+鏈塀UG
+                // TODO 此处需要设置当前webview的bounce为none,目前5+有BUG
                 if (this.stopped) {
                     this.disablePullupToRefresh();
                     this.disablePulldownToRefresh();
@@ -5285,11 +5285,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             beginPulldown: function() {
                 var self = this;
                 $.plusReady(function() {
-                    //杩欓噷寤舵椂鐨勭洰鐨勬槸涓轰簡淇濊瘉涓嬫媺鍒锋柊缁勪欢鍒濆鍖栧畬鎴愶紝鍚庣画搴旇鍋氭垚鏈夌姸鎬佺殑
+                    //这里延时的目的是为了保证下拉刷新组件初始化完成，后续应该做成有状态的
                     setTimeout(function() {
-                        if (self.options.down.style == "circle") { //鍗晈ebview涓嬫媺鍒锋柊
+                        if (self.options.down.style == "circle") { //单webview下拉刷新
                             plus.webview.currentWebview().beginPullToRefresh();
-                        } else { //鍙寃ebview妯″紡
+                        } else { //双webview模式
                             var webview = self.options.webview;
                             if (webview) {
                                 webview.setBounce({
@@ -5302,10 +5302,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                     }, 15);
                 }.bind(this));
             },
-            pulldownLoading: function() { //璇ユ柟娉曟槸瀛愰〉闈㈣皟鐢ㄧ殑锛屽吋瀹硅€佺殑鍘嗗彶API
+            pulldownLoading: function() { //该方法是子页面调用的，兼容老的历史API
                 this.beginPulldown();
             },
-            _pulldownLoading: function() { //璇ユ柟娉曟槸鐖堕〉闈㈣皟鐢ㄧ殑
+            _pulldownLoading: function() { //该方法是父页面调用的
                 var self = this;
                 $.plusReady(function() {
                     var childWebview = plus.webview.getWebviewById(self.options.webviewId);
@@ -5318,7 +5318,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             },
             endPulldown: function() {
                 var _wv = plus.webview.currentWebview();
-                //鍙寃ebview鐨勪笅鎷夊埛鏂帮紝闇€瑕佷慨鏀圭埗绐楀彛鎻愮ず淇℃伅
+                //双webview的下拉刷新，需要修改父窗口提示信息
                 if (_wv.parent() && this.options.down.style !== "circle") {
                     _wv.parent().evalJS("mui&&mui(document.querySelector('.mui-content')).pullRefresh('" + JSON.stringify({
                         webviewId: _wv.id
@@ -5327,13 +5327,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                     _wv.endPullToRefresh();
                 }
             },
-            endPulldownToRefresh: function() { //璇ユ柟娉曟槸瀛愰〉闈㈣皟鐢ㄧ殑锛屽吋瀹硅€佺殑鍘嗗彶API
+            endPulldownToRefresh: function() { //该方法是子页面调用的，兼容老的历史API
                 this.endPulldown();
             },
-            _endPulldownToRefresh: function() { //璇ユ柟娉曟槸鐖堕〉闈㈣皟鐢ㄧ殑
+            _endPulldownToRefresh: function() { //该方法是父页面调用的
                 var self = this;
                 if (self.topPocket && self.options.webview) {
-                    self.options.webview.endPullToRefresh(); //涓嬫媺鍒锋柊鎵€鍦╳ebview鍥炲脊
+                    self.options.webview.endPullToRefresh(); //下拉刷新所在webview回弹
                     self.loading = false;
                     self._setCaption(self.options.down.contentdown, true);
                     setTimeout(function() {
@@ -5341,7 +5341,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                     }, 350);
                 }
             },
-            beginPullup: function(callback) { //寮€濮嬩笂鎷夊姞杞�
+            beginPullup: function(callback) { //开始上拉加载
                 var self = this;
                 if (self.isLoading) return;
                 self.isLoading = true;
@@ -5353,17 +5353,17 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 setTimeout(function() {
                     self.pullLoading.classList.add(CLASS_VISIBILITY);
                     self.pullLoading.classList.remove(CLASS_HIDDEN);
-                    self.pullCaption.innerHTML = ''; //淇5+閲岃竟绗竴娆″姞杞芥椂锛屾枃瀛楁樉绀虹殑bug(杩樹細鏄剧ず鍑烘潵涓€滃鈥�,鐚滄祴搴旇鏄覆鏌撻棶棰樺鑷寸殑)
+                    self.pullCaption.innerHTML = ''; //修正5+里边第一次加载时，文字显示的bug(还会显示出来个“多”,猜测应该是渲染问题导致的)
                     self.pullCaption.className = CLASS_PULL_CAPTION + ' ' + CLASS_PULL_CAPTION_REFRESH;
                     self.pullCaption.innerHTML = self.options.up.contentrefresh;
                     callback = callback || self.options.up.callback;
                     callback && callback.call(self);
                 }, 300);
             },
-            pullupLoading: function(callback) { //鍏煎鑰佺殑API
+            pullupLoading: function(callback) { //兼容老的API
                 this.beginPullup(callback);
             },
-            endPullup: function(finished) { //涓婃媺鍔犺浇缁撴潫
+            endPullup: function(finished) { //上拉加载结束
                 var self = this;
                 if (self.pullLoading) {
                     self.pullLoading.classList.remove(CLASS_VISIBILITY);
@@ -5373,26 +5373,26 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                         self.finished = true;
                         self.pullCaption.className = CLASS_PULL_CAPTION + ' ' + CLASS_PULL_CAPTION_NOMORE;
                         self.pullCaption.innerHTML = self.options.up.contentnomore;
-                        //鍙栨秷5+鐨刾lusscrollbottom浜嬩欢
+                        //取消5+的plusscrollbottom事件
                         document.removeEventListener('plusscrollbottom', self);
                         window.removeEventListener('dragup', self);
-                    } else { //鍒濆鍖栨椂闅愯棌锛屽悗缁笉鍐嶉殣钘�
+                    } else { //初始化时隐藏，后续不再隐藏
                         self.pullCaption.className = CLASS_PULL_CAPTION + ' ' + CLASS_PULL_CAPTION_DOWN;
                         self.pullCaption.innerHTML = self.options.up.contentdown;
                     }
                 }
             },
-            endPullupToRefresh: function(finished) { //涓婃媺鍔犺浇缁撴潫锛屽吋瀹硅€佺殑API
+            endPullupToRefresh: function(finished) { //上拉加载结束，兼容老的API
                 this.endPullup(finished);
             },
             disablePulldownToRefresh: function() {
                 var webview = plus.webview.currentWebview();
-                if (this.options.down.style && this.options.down.style == 'circle') { // 鍗晈ebview妯″紡绂佹鍘熺敓涓嬫媺鍒锋柊
+                if (this.options.down.style && this.options.down.style == 'circle') { // 单webview模式禁止原生下拉刷新
                     this.options.webview.setPullToRefresh({
                         support: false,
                         style: 'circle'
                     });
-                } else { // 鍙寃ebview妯″紡绂佹涓嬫媺鍒锋柊
+                } else { // 双webview模式禁止下拉刷新
                     webview.setStyle({
                         bounce: 'none'
                     });
@@ -5407,7 +5407,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 var self = this,
                     webview = plus.webview.currentWebview(),
                     height = this.options.down.height;
-                // 鍗晈ebview妯″紡绂佹鍘熺敓涓嬫媺鍒锋柊
+                // 单webview模式禁止原生下拉刷新
                 if (this.options.down.style && this.options.down.style == 'circle') {
                     webview.setPullToRefresh({
                         support: true,
@@ -5416,7 +5416,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                         style: 'circle',
                         offset: self.options.down.offset || '0px'
                     });
-                } else { // 閲嶆柊鍒濆鍖栧弻webview妯″紡涓嬫媺鍒锋柊
+                } else { // 重新初始化双webview模式下拉刷新
                     webview.setStyle({
                         bounce: 'vertical'
                     });
@@ -5468,19 +5468,19 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                 self = this[0];
             }
             var args = options;
-            //涓€涓埗闇€瑕佹敮鎸佸涓瓙涓嬫媺鍒锋柊
+            //一个父需要支持多个子下拉刷新
             options = options || {}
             if (typeof options === 'string') {
                 options = $.parseJSON(options);
             };
             !options.webviewId && (options.webviewId = (plus.webview.currentWebview().id || plus.webview.currentWebview().getURL()));
             var pullRefreshApi = null;
-            var attrWebviewId = options.webviewId && options.webviewId.replace(/\//g, "_"); //鏇挎崲鎵€鏈�"/"
+            var attrWebviewId = options.webviewId && options.webviewId.replace(/\//g, "_"); //替换所有"/"
             var id = self.getAttribute('data-pullrefresh-plus-' + attrWebviewId);
             if (!id && typeof args === 'undefined') {
                 return false;
             }
-            if (!id) { //閬垮厤閲嶅鍒濆鍖�5+ pullrefresh
+            if (!id) { //避免重复初始化5+ pullrefresh
                 id = ++$.uuid;
                 self.setAttribute('data-pullrefresh-plus-' + attrWebviewId, id);
                 document.body.classList.add(CLASS_PLUS_PULLREFRESH);
@@ -5488,10 +5488,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             } else {
                 pullRefreshApi = $.data[id];
             }
-            if (options.down && options.down.auto) { //濡傛灉璁剧疆浜哸uto锛屽垯鑷姩涓嬫媺涓€娆�
+            if (options.down && options.down.auto) { //如果设置了auto，则自动下拉一次
                 //pullRefreshApi._pulldownLoading(); //parent webview
                 pullRefreshApi.beginPulldown();
-            } else if (options.up && options.up.auto) { //濡傛灉璁剧疆浜哸uto锛屽垯鑷姩涓婃媺涓€娆�
+            } else if (options.up && options.up.auto) { //如果设置了auto，则自动上拉一次
                 pullRefreshApi.beginPullup();
             }
             return pullRefreshApi;
@@ -5599,7 +5599,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				case $.EVENT_START:
 					e.target && !this._preventDefaultException(e.target, this.options.preventDefaultException) && e.preventDefault();
 					break;
-				case 'webkitTransitionEnd': //鏈変釜bug闇€瑕佸鐞嗭紝闇€瑕佽€冭檻鍋囪娌℃湁瑙﹀彂webkitTransitionEnd鐨勬儏鍐�
+				case 'webkitTransitionEnd': //有个bug需要处理，需要考虑假设没有触发webkitTransitionEnd的情况
 					if (e.target === this.scroller) {
 						this._dispatchEvent();
 					}
@@ -5657,7 +5657,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 							this.startX = this.lastX;
 							this.isDragging = true;
 
-							$.gestures.session.lockDirection = true; //閿佸畾鏂瑰悜
+							$.gestures.session.lockDirection = true; //锁定方向
 							$.gestures.session.startDirection = detail.direction;
 
 							this.offCanvas.classList.remove(CLASS_TRANSITIONING);
@@ -5689,29 +5689,29 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 							}
 							if (ratio === 0) {
 								this.openPercentage(0);
-								this._dispatchEvent(); //姝ゅ涓嶈Е鍙憌ebkitTransitionEnd,鎵€浠ユ墜鍔╠ispatch
+								this._dispatchEvent(); //此处不触发webkitTransitionEnd,所以手动dispatch
 								return;
 							}
-							if (direction === 'right' && ratio >= 0 && (ratio >= 0.5 || detail.swipe)) { //鍙虫粦鎵撳紑
+							if (direction === 'right' && ratio >= 0 && (ratio >= 0.5 || detail.swipe)) { //右滑打开
 								this.openPercentage(100);
-							} else if (direction === 'right' && ratio < 0 && (ratio > -0.5 || detail.swipe)) { //鍙虫粦鍏抽棴
+							} else if (direction === 'right' && ratio < 0 && (ratio > -0.5 || detail.swipe)) { //右滑关闭
 								this.openPercentage(0);
-							} else if (direction === 'right' && ratio > 0 && ratio < 0.5) { //鍙虫粦杩樺師鍏抽棴
+							} else if (direction === 'right' && ratio > 0 && ratio < 0.5) { //右滑还原关闭
 								this.openPercentage(0);
-							} else if (direction === 'right' && ratio < 0.5) { //鍙虫粦杩樺師鎵撳紑
+							} else if (direction === 'right' && ratio < 0.5) { //右滑还原打开
 								this.openPercentage(-100);
-							} else if (direction === 'left' && ratio <= 0 && (ratio <= -0.5 || detail.swipe)) { //宸︽粦鎵撳紑
+							} else if (direction === 'left' && ratio <= 0 && (ratio <= -0.5 || detail.swipe)) { //左滑打开
 								this.openPercentage(-100);
-							} else if (direction === 'left' && ratio > 0 && (ratio <= 0.5 || detail.swipe)) { //宸︽粦鍏抽棴
+							} else if (direction === 'left' && ratio > 0 && (ratio <= 0.5 || detail.swipe)) { //左滑关闭
 								this.openPercentage(0);
-							} else if (direction === 'left' && ratio < 0 && ratio >= -0.5) { //宸︽粦杩樺師鍏抽棴
+							} else if (direction === 'left' && ratio < 0 && ratio >= -0.5) { //左滑还原关闭
 								this.openPercentage(0);
-							} else if (direction === 'left' && ratio > 0.5) { //宸︽粦杩樺師鎵撳紑
+							} else if (direction === 'left' && ratio > 0.5) { //左滑还原打开
 								this.openPercentage(100);
-							} else { //榛樿鍏抽棴
+							} else { //默认关闭
 								this.openPercentage(0);
 							}
-							if (ratio === 1 || ratio === -1) { //姝ゅ涓嶈Е鍙憌ebkitTransitionEnd,鎵€浠ユ墜鍔╠ispatch
+							if (ratio === 1 || ratio === -1) { //此处不触发webkitTransitionEnd,所以手动dispatch
 								this._dispatchEvent();
 							}
 						} else {
@@ -5720,21 +5720,21 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 							} else {
 								ratio = (this.offCanvasLeftWidth && (x / this.offCanvasLeftWidth)) || 0;
 							}
-							if (direction === 'right' && ratio <= 0 && (ratio >= -0.5 || detail.swipe)) { //鍙虫粦鎵撳紑
+							if (direction === 'right' && ratio <= 0 && (ratio >= -0.5 || detail.swipe)) { //右滑打开
 								this.openPercentage(100);
-							} else if (direction === 'right' && ratio > 0 && (ratio >= 0.5 || detail.swipe)) { //鍙虫粦鍏抽棴
+							} else if (direction === 'right' && ratio > 0 && (ratio >= 0.5 || detail.swipe)) { //右滑关闭
 								this.openPercentage(0);
-							} else if (direction === 'right' && ratio <= -0.5) { //鍙虫粦杩樺師鍏抽棴
+							} else if (direction === 'right' && ratio <= -0.5) { //右滑还原关闭
 								this.openPercentage(0);
-							} else if (direction === 'right' && ratio > 0 && ratio <= 0.5) { //鍙虫粦杩樺師鎵撳紑
+							} else if (direction === 'right' && ratio > 0 && ratio <= 0.5) { //右滑还原打开
 								this.openPercentage(-100);
-							} else if (direction === 'left' && ratio >= 0 && (ratio <= 0.5 || detail.swipe)) { //宸︽粦鎵撳紑
+							} else if (direction === 'left' && ratio >= 0 && (ratio <= 0.5 || detail.swipe)) { //左滑打开
 								this.openPercentage(-100);
-							} else if (direction === 'left' && ratio < 0 && (ratio <= -0.5 || detail.swipe)) { //宸︽粦鍏抽棴
+							} else if (direction === 'left' && ratio < 0 && (ratio <= -0.5 || detail.swipe)) { //左滑关闭
 								this.openPercentage(0);
-							} else if (direction === 'left' && ratio >= 0.5) { //宸︽粦杩樺師鍏抽棴
+							} else if (direction === 'left' && ratio >= 0.5) { //左滑还原关闭
 								this.openPercentage(0);
-							} else if (direction === 'left' && ratio >= -0.5 && ratio < 0) { //宸︽粦杩樺師鎵撳紑
+							} else if (direction === 'left' && ratio >= -0.5 && ratio < 0) { //左滑还原打开
 								this.openPercentage(100);
 							} else {
 								this.openPercentage(0);
@@ -5776,7 +5776,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				});
 			}
 			if (this.classList.contains('mui-draggable')) {
-				this.wrapper.addEventListener($.EVENT_START, this); //涓存椂澶勭悊
+				this.wrapper.addEventListener($.EVENT_START, this); //临时处理
 				this.wrapper.addEventListener('drag', this);
 				this.wrapper.addEventListener('dragend', this);
 			}
@@ -6024,7 +6024,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		if (!$.targets.offcanvas) {
 			return;
 		}
-		//TODO 姝ゅ绫诲瀷鐨勪唬鐮佸悗缁€冭檻缁熶竴浼樺寲(target鏈哄埗)锛岀幇鍦ㄧ殑瀹炵幇璐瑰姏涓嶈濂�
+		//TODO 此处类型的代码后续考虑统一优化(target机制)，现在的实现费力不讨好
 		var target = e.target;
 		for (; target && target !== document; target = target.parentNode) {
 			if (target.tagName === 'A' && target.hash && target.hash === ('#' + $.targets.offcanvas.id)) {
@@ -6236,8 +6236,8 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		if ((state === 'show' && popover.classList.contains(CLASS_ACTIVE)) || (state === 'hide' && !popover.classList.contains(CLASS_ACTIVE))) {
 			return;
 		}
-		removeBackdropTimer && removeBackdropTimer.cancel(); //鍙栨秷remove鐨則imer
-		//remove涓€閬嶏紝浠ュ厤鏉ュ洖蹇€熷垏鎹紝瀵艰嚧webkitTransitionEnd涓嶈Е鍙戯紝鏃犳硶remove
+		removeBackdropTimer && removeBackdropTimer.cancel(); //取消remove的timer
+		//remove一遍，以免来回快速切换，导致webkitTransitionEnd不触发，无法remove
 		popover.removeEventListener('webkitTransitionEnd', onPopoverShown);
 		popover.removeEventListener('webkitTransitionEnd', onPopoverHidden);
 		backdrop.classList.remove(CLASS_BAR_BACKDROP);
@@ -6248,7 +6248,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			_popover.addEventListener('webkitTransitionEnd', onPopoverHidden);
 			_popover.classList.remove(CLASS_ACTIVE);
 			//			_popover.removeEventListener('webkitTransitionEnd', onPopoverHidden);
-			//鍚屼竴涓脊鍑哄垯鐩存帴杩斿洖锛岃В鍐冲悓涓€涓猵opover鐨則oggle
+			//同一个弹出则直接返回，解决同一个popover的toggle
 			if (popover === _popover) {
 				removeBackdrop(_popover);
 				return;
@@ -6430,12 +6430,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
    var handle = function(event, target) {
         if (target.classList && (target.classList.contains(CLASS_CONTROL_ITEM) || target.classList.contains(CLASS_TAB_ITEM))) {
             if (target.parentNode && target.parentNode.classList && target.parentNode.classList.contains(CLASS_SEGMENTED_CONTROL_VERTICAL)) {
-                //vertical 濡傛灉preventDefault浼氬鑷存棤娉曟粴鍔�
+                //vertical 如果preventDefault会导致无法滚动
             } else {
 
                     event.preventDefault();      
                     // if(target.tagName == 'A') {
-                    //     // fixed 搴曢儴閫夐」鍗ref 鏃犳硶璺宠浆 && stop hash change
+                    //     // fixed 底部选项卡href 无法跳转 && stop hash change
                     //     var curr_href = location.hostname + location.pathname,
                     //         target_href = target.hostname + target.pathname;
                    
@@ -6518,7 +6518,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
         var contents = [];
         var _contents = parentNode.querySelectorAll('.' + CLASS_CONTROL_CONTENT);
-        for (var i = 0; i < _contents.length; i++) { //鏌ユ壘鐩村睘瀛愯妭鐐�
+        for (var i = 0; i < _contents.length; i++) { //查找直属子节点
             _contents[i].parentNode === parentNode && (contents.push(_contents[i]));
         }
         $.trigger(targetBody, $.eventName('shown', name), {
@@ -6604,7 +6604,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 	Toggle.prototype.start = function(e) {
 		this.handle.style.webkitTransitionDuration = this.element.style.webkitTransitionDuration = '.2s';
 		this.classList.add(CLASS_DRAGGING);
-		if (this.toggleWidth === 0 || this.handleWidth === 0) { //褰搒witch澶勪簬闅愯棌鐘舵€佹椂锛寃idth涓�0锛岄渶瑕侀噸鏂板垵濮嬪寲
+		if (this.toggleWidth === 0 || this.handleWidth === 0) { //当switch处于隐藏状态时，width为0，需要重新初始化
 			this.init();
 		}
 	};
@@ -6908,11 +6908,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			var direction = detail.direction;
 			var angle = detail.angle;
 			if (direction === 'left' && (angle > 150 || angle < -150)) {
-				if (buttonsRight || (buttonsLeft && isOpened)) { //瀛樺湪鍙充晶鎸夐挳鎴栧瓨鍦ㄥ乏渚ф寜閽笖鏄凡鎵撳紑鐘舵€�
+				if (buttonsRight || (buttonsLeft && isOpened)) { //存在右侧按钮或存在左侧按钮且是已打开状态
 					isMoved = true;
 				}
 			} else if (direction === 'right' && (angle > -30 && angle < 30)) {
-				if (buttonsLeft || (buttonsRight && isOpened)) { //瀛樺湪宸︿晶鎸夐挳鎴栧瓨鍦ㄥ彸渚ф寜閽笖鏄凡鎵撳紑鐘舵€�
+				if (buttonsLeft || (buttonsRight && isOpened)) { //存在左侧按钮或存在右侧按钮且是已打开状态
 					isMoved = true;
 				}
 			}
@@ -7044,7 +7044,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		element[method]('flick', handleEvent);
 	};
 	/**
-	 * 鎵撳紑婊戝姩鑿滃崟
+	 * 打开滑动菜单
 	 * @param {Object} el
 	 * @param {Object} direction
 	 */
@@ -7084,7 +7084,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		setTranslate(el.querySelector(SELECTOR_SLIDER_HANDLE), translate);
 	};
 	/**
-	 * 鍏抽棴婊戝姩鑿滃崟
+	 * 关闭滑动菜单
 	 * @param {Object} el
 	 */
 	$.swipeoutClose = function(el) {
@@ -7112,14 +7112,14 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	};
 
-	window.addEventListener($.EVENT_END, function(event) { //浣跨敤touchend鏉ュ彇娑堥珮浜紝閬垮厤涓€娆＄偣鍑绘棦涓嶈Е鍙憈ap锛宒oubletap锛宭ongtap鐨勪簨浠�
+	window.addEventListener($.EVENT_END, function(event) { //使用touchend来取消高亮，避免一次点击既不触发tap，doubletap，longtap的事件
 		if (!cell) {
 			return;
 		}
 		toggleActive(false);
 		sliderHandle && toggleEvents(cell, true);
 	});
-	window.addEventListener($.EVENT_CANCEL, function(event) { //浣跨敤touchcancel鏉ュ彇娑堥珮浜紝閬垮厤涓€娆＄偣鍑绘棦涓嶈Е鍙憈ap锛宒oubletap锛宭ongtap鐨勪簨浠�
+	window.addEventListener($.EVENT_CANCEL, function(event) { //使用touchcancel来取消高亮，避免一次点击既不触发tap，doubletap，longtap的事件
 		if (!cell) {
 			return;
 		}
@@ -7190,7 +7190,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				event.detail.gesture.preventDefault();
 			}
 
-			if (!classList.contains(CLASS_ACTIVE)) { //灞曞紑鏃�,闇€瑕佹敹缂╁叾浠栧悓绫�
+			if (!classList.contains(CLASS_ACTIVE)) { //展开时,需要收缩其他同类
 				var collapse = cell.parentNode.querySelector('.mui-collapse.mui-active');
 				if (collapse) {
 					collapse.classList.remove(CLASS_ACTIVE);
@@ -7199,11 +7199,11 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			}
 			classList.toggle(CLASS_ACTIVE);
 			if (isExpand) {
-				//瑙﹀彂灞曞紑浜嬩欢
+				//触发展开事件
 				$.trigger(cell, 'expand');
 
 				//scroll
-				//鏆備笉婊氬姩
+				//暂不滚动
 				// var offsetTop = $.offset(cell).top;
 				// var scrollTop = document.body.scrollTop;
 				// var height = window.innerHeight;
@@ -7222,7 +7222,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 })(mui, window, document);
 (function($, window) {
 	/**
-	 * 璀﹀憡娑堟伅妗�
+	 * 警告消息框
 	 */
 	$.alert = function(message, title, btnValue, callback) {
 		if ($.os.plus) {
@@ -7232,7 +7232,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 				if (typeof title === 'function') {
 					callback = title;
 					title = null;
-					btnValue = '纭畾';
+					btnValue = '确定';
 				} else if (typeof btnValue === 'function') {
 					callback = btnValue;
 					btnValue = null;
@@ -7243,7 +7243,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			}
 
 		} else {
-			//TODO H5鐗堟湰
+			//TODO H5版本
 			window.alert(message);
 		}
 	};
@@ -7251,7 +7251,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 })(mui, window);
 (function($, window) {
 	/**
-	 * 纭娑堟伅妗�
+	 * 确认消息框
 	 */
 	$.confirm = function(message, title, btnArray, callback) {
 		if ($.os.plus) {
@@ -7272,7 +7272,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			}
 
 		} else {
-			//H5鐗堟湰锛�0涓虹‘璁わ紝1涓哄彇娑�
+			//H5版本，0为确认，1为取消
 			if (window.confirm(message)) {
 				callback({
 					index: 0
@@ -7288,7 +7288,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 })(mui, window);
 (function($, window) {
 	/**
-	 * 杈撳叆瀵硅瘽妗�
+	 * 输入对话框
 	 */
 	$.prompt = function(text, defaultText, title, btnArray, callback) {
 		if ($.os.plus) {
@@ -7315,7 +7315,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 			}
 
 		} else {
-			//H5鐗堟湰(纭index涓�0锛屽彇娑坕ndex涓�1)
+			//H5版本(确认index为0，取消index为1)
 			var result = window.prompt(text);
 			if (result) {
 				callback({
@@ -7335,7 +7335,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 (function($, window) {
 	var CLASS_ACTIVE = 'mui-active';
 	/**
-	 * 鑷姩娑堝け鎻愮ず妗�
+	 * 自动消失提示框
 	 */
 	$.toast = function(message,options) {
 		var durations = {
@@ -7343,14 +7343,14 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		    'short': 2000
 		};
 
-		//璁＄畻鏄剧ず鏃堕棿
+		//计算显示时间
 		 options = $.extend({
 	        duration: 'short'
 	    }, options || {});
 
 
 		if ($.os.plus && options.type !== 'div') {
-			//榛樿鏄剧ず鍦ㄥ簳閮紱
+			//默认显示在底部；
 			$.plusReady(function() {
 				plus.nativeUI.toast(message, {
 					verticalAlign: 'bottom',
@@ -7375,7 +7375,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 					toast = null;
 				}
 			});
-			//鐐瑰嚮鍒欒嚜鍔ㄦ秷澶�
+			//点击则自动消失
 			toast.addEventListener('click', function() {
 		        toast.parentNode.removeChild(toast);
 		        toast = null;
@@ -7478,7 +7478,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                         index: index || 0,
                         value: input && input.value || ''
                     });
-                    if (result === false) { //杩斿洖false鍒欎笉鍏抽棴褰撳墠popup
+                    if (result === false) { //返回false则不关闭当前popup
                         return;
                     }
                     if (animate !== false) {
@@ -7488,7 +7488,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
                         removePopupElement();
                     }
                     popupStack.pop();
-                    //濡傛灉杩樻湁鍏朵粬popup锛屽垯涓峳emove backdrop
+                    //如果还有其他popup，则不remove backdrop
                     if (popupStack.length) {
                         popupStack[popupStack.length - 1]['show'](animate);
                     } else {
@@ -7534,9 +7534,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             }
         }
         if (!$.os.plus || type === 'div') {
-            return createPopup(createInner(message, title || '鎻愮ず') + createButtons([btnValue || '纭畾']), callback);
+            return createPopup(createInner(message, title || '提示') + createButtons([btnValue || '确定']), callback);
         }
-        return plus.nativeUI.alert(message, callback, title || '鎻愮ず', btnValue || '纭畾');
+        return plus.nativeUI.alert(message, callback, title || '提示', btnValue || '确定');
     };
     var createConfirm = function(message, title, btnArray, callback, type) {
         if (typeof message === 'undefined') {
@@ -7554,9 +7554,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             }
         }
         if (!$.os.plus || type === 'div') {
-            return createPopup(createInner(message, title || '鎻愮ず') + createButtons(btnArray || ['鍙栨秷', '纭']), callback);
+            return createPopup(createInner(message, title || '提示') + createButtons(btnArray || ['取消', '确认']), callback);
         }
-        return plus.nativeUI.confirm(message, callback, title, btnArray || ['鍙栨秷', '纭']);
+        return plus.nativeUI.confirm(message, callback, title, btnArray || ['取消', '确认']);
     };
     var createPrompt = function(message, placeholder, title, btnArray, callback, type) {
         if (typeof message === 'undefined') {
@@ -7580,9 +7580,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             }
         }
         if (!$.os.plus || type === 'div') {
-            return createPopup(createInner(message, title || '鎻愮ず', createInput(placeholder)) + createButtons(btnArray || ['鍙栨秷', '纭']), callback);
+            return createPopup(createInner(message, title || '提示', createInput(placeholder)) + createButtons(btnArray || ['取消', '确认']), callback);
         }
-        return plus.nativeUI.prompt(message, callback, title || '鎻愮ず', placeholder, btnArray || ['鍙栨秷', '纭']);
+        return plus.nativeUI.prompt(message, callback, title || '提示', placeholder, btnArray || ['取消', '确认']);
     };
     var closePopup = function() {
         if (popupStack.length) {
@@ -7630,10 +7630,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		}
 	};
 	/**
-	 * 鍒涘缓骞舵樉绀鸿繘搴︽潯 
-	 * @param {Object} container  鍙€夛紝榛樿body锛屾敮鎸乻elector,DOM Node,mui wrapper
-	 * @param {Object} progress 鍙€夛紝undefined琛ㄧず寰幆锛屾暟瀛楄〃绀哄叿浣撹繘搴�
-	 * @param {Object} color 鍙€夛紝鎸囧畾棰滆壊鏍峰紡(鐩墠鏆傛湭鎻愪緵瀹為檯鏍峰紡锛屽彲鏆傛椂涓嶆毚闇叉鍙傛暟)
+	 * 创建并显示进度条 
+	 * @param {Object} container  可选，默认body，支持selector,DOM Node,mui wrapper
+	 * @param {Object} progress 可选，undefined表示循环，数字表示具体进度
+	 * @param {Object} color 可选，指定颜色样式(目前暂未提供实际样式，可暂时不暴露此参数)
 	 */
 	var showProgressbar = function(container, progress, color) {
 		if (typeof container === 'number') {
@@ -7673,8 +7673,8 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return progressbar;
 	};
 	/**
-	 * 鍏抽棴杩涘害鏉� 
-	 * @param {Object} container 鍙€夛紝榛樿body锛屾敮鎸乻elector,DOM Node,mui wrapper
+	 * 关闭进度条 
+	 * @param {Object} container 可选，默认body，支持selector,DOM Node,mui wrapper
 	 */
 	var hideProgressbar = function(container) {
 		var progressbar = _findProgressbar(container);
@@ -7694,10 +7694,10 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		return;
 	};
 	/**
-	 * 璁剧疆鎸囧畾杩涘害鏉¤繘搴� 
-	 * @param {Object} container  鍙€夛紝榛樿body锛屾敮鎸乻elector,DOM Node,mui wrapper
-	 * @param {Object} progress 鍙€夛紝榛樿0 鍙栧€艰寖鍥碵0-100]
-	 * @param {Object} speed 杩涘害鏉″姩鐢绘椂闂�
+	 * 设置指定进度条进度 
+	 * @param {Object} container  可选，默认body，支持selector,DOM Node,mui wrapper
+	 * @param {Object} progress 可选，默认0 取值范围[0-100]
+	 * @param {Object} speed 进度条动画时间
 	 */
 	var setProgressbar = function(container, progress, speed) {
 		if (typeof container === 'number') {
@@ -7879,7 +7879,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 		if (this.sliderActionClass) {
 			var tooltip = this.sliderAction;
 			var timer = null;
-			var showTip = function() { //姣忔閲嶆柊璁＄畻鏄洜涓烘帶浠跺彲鑳借闅愯棌锛屽垵濮嬪寲鏃惰绠楁槸涓嶆纭殑
+			var showTip = function() { //每次重新计算是因为控件可能被隐藏，初始化时计算是不正确的
 				tooltip.classList.remove(CLASS_HIDDEN);
 				var offsetLeft = element.offsetLeft;
 				var width = element.offsetWidth - 28;
@@ -8042,15 +8042,15 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
     var Transparent = function(element, options) {
         this.element = element;
         this.options = $.extend({
-            top: 0, //璺濈椤堕儴楂樺害(鍒拌揪璇ラ珮搴﹀嵆瑙﹀彂)
-            offset: 150, //婊氬姩閫忔槑璺濈
-            duration: 16, //杩囨浮鏃堕棿
-            scrollby: window//鐩戝惉婊氬姩璺濈瀹瑰櫒
+            top: 0, //距离顶部高度(到达该高度即触发)
+            offset: 150, //滚动透明距离
+            duration: 16, //过渡时间
+            scrollby: window//监听滚动距离容器
         }, options || {});
 
         this.scrollByElem = this.options.scrollby || window;
         if (!this.scrollByElem) {
-            throw new Error("鐩戝惉婊氬姩鐨勫厓绱犱笉瀛樺湪");
+            throw new Error("监听滚动的元素不存在");
         }
         this.isNativeScroll = false;
         if (this.scrollByElem === window) {
@@ -8071,13 +8071,13 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             this._bufferFn = $.buffer(this.handleScroll, this.options.duration, this);
             this.initEvent();
         } else {
-            throw new Error("鍏冪礌鑳屾櫙棰滆壊蹇呴』涓篟GBA");
+            throw new Error("元素背景颜色必须为RGBA");
         }
     };
 
     Transparent.prototype.initEvent = function() {
         this.scrollByElem.addEventListener('scroll', this._bufferFn);
-        if (this.isNativeScroll) { //鍘熺敓scroll
+        if (this.isNativeScroll) { //原生scroll
             this.scrollByElem.addEventListener($.EVENT_MOVE, this._bufferFn);
         }
     }
@@ -8140,7 +8140,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
     });
 })(mui, window);
 /**
- * 鏁板瓧杈撳叆妗�
+ * 数字输入框
  * varstion 1.0.1
  * by Houfeng
  * Houfeng@DCloud.io
@@ -8158,12 +8158,12 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
     var Numbox = $.Numbox = $.Class.extend({
         /**
-         * 鏋勯€犲嚱鏁�
+         * 构造函数
          **/
         init: function(holder, options) {
             var self = this;
             if (!holder) {
-                throw "鏋勯€� numbox 鏃剁己灏戝鍣ㄥ厓绱�";
+                throw "构造 numbox 时缺少容器元素";
             }
             self.holder = holder;
             options = options || {};
@@ -8176,7 +8176,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             self.initEvent();
         },
         /**
-         * 鍒濆鍖栦簨浠剁粦瀹�
+         * 初始化事件绑定
          **/
         initEvent: function() {
             var self = this;
@@ -8193,21 +8193,21 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             self.input.addEventListener(changeEventName, function(event) {
                 self.checkValue();
                 var val = parseInt(self.input.value);
-                //瑙﹀彂椤跺眰瀹瑰櫒
+                //触发顶层容器
                 $.trigger(self.holder, changeEventName, {
                     value: val
                 });
             });
         },
         /**
-         * 鑾峰彇褰撳墠鍊�
+         * 获取当前值
          **/
         getValue: function() {
             var self = this;
             return parseInt(self.input.value);
         },
         /**
-         * 楠岃瘉褰撳墠鍊兼槸娉曞悎娉�
+         * 验证当前值是法合法
          **/
         checkValue: function() {
             var self = this;
@@ -8233,14 +8233,14 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
             }
         },
         /**
-         * 鏇存柊閫夐」
+         * 更新选项
          **/
         setOption: function(name, value) {
             var self = this;
             self.options[name] = value;
         },
         /**
-         * 鍔ㄦ€佽缃柊鍊�
+         * 动态设置新值
          **/
         setValue: function(value) {
             this.input.value = value;
@@ -8250,7 +8250,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
 
     $.fn.numbox = function(options) {
         var instanceArray = [];
-        //閬嶅巻閫夋嫨鐨勫厓绱�
+        //遍历选择的元素
         this.each(function(i, element) {
             if (element.numbox) {
                 return;
@@ -8269,7 +8269,7 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
         return this[0] ? this[0].numbox : null;
     }
 
-    //鑷姩澶勭悊 class='mui-locker' 鐨� dom
+    //自动处理 class='mui-locker' 的 dom
     $.ready(function() {
         $('.' + holderClassName).numbox();
     });
@@ -8290,9 +8290,9 @@ Function.prototype.bind = Function.prototype.bind || function(to) {
     var STATE_LOADING = 'loading';
 
     var defaultOptions = {
-        loadingText: 'Loading...', //鏂囨
-        loadingIcon: 'mui-spinner' + ' ' + 'mui-spinner-white', //鍥炬爣锛屽彲涓虹┖
-        loadingIconPosition: 'left' //鍥炬爣鎵€澶勪綅缃紝浠呮敮鎸乴eft|right
+        loadingText: 'Loading...', //文案
+        loadingIcon: 'mui-spinner' + ' ' + 'mui-spinner-white', //图标，可为空
+        loadingIconPosition: 'left' //图标所处位置，仅支持left|right
     };
 
     var Button = function(element, options) {
