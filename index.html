@@ -165,8 +165,10 @@
 
   var HOST = '118.ydmhb.com'
   var LOGIN_URL = 'https://' + HOST + '/index.php/home/index/oauth'
-  new ClipboardJS('#clipboard')
-
+  var clipboard = new ClipboardJS('#clipboard')
+	clipboard.on('success', function(e) {
+		mui.alert('复制成功!');
+	});
   function isWechat () {
     return /MicroMessenger/.test(navigator.userAgent)
   }
